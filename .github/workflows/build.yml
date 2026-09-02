@@ -1,11 +1,11 @@
-name: 'Ultra-Performance crDroid 6.30 Vanilla for Realme 5 Pro (RMX1971)'
+name: 'Ultra-Performance crDroid 6.30 Vanilla for Realme 5 Pro (Ubuntu 22.04)'
 
 on:
   workflow_dispatch:
 
 jobs:
   compile_firmware_rmx1971:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: 'Оптимизация дискового пространства раннера GitHub'
       uses: easimon/maximize-build-space@master
@@ -19,8 +19,21 @@ jobs:
     - name: 'Настройка окружения сборщика и низкоуровневых утилит'
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.1-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev openjdk-8-jdk python2 python3-pip
+        # Установка компиляторов GCC 9 для обратной совместимости с Android 10
+        sudo apt-get install -y gcc-9 g++-9 gcc-9-multilib g++-9-multilib
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
+        
+        # Скачивание и установка libssl1.1, обязательной для старых платформ Android
+        wget http://ubuntu.com || wget http://ubuntu.com
+        sudo dpkg -i libssl1.1_*.deb || true
+        
+        # Установка базового набора инструментов
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.1-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev openjdk-8-jdk python3-pip
+        
+        # Развертывание Python 2 (требуется для repo и скриптов Android 10)
+        sudo apt-get install -y python2 || (sudo apt-get install -y python2-minimal && curl https://pypa.io --output get-pip.py && sudo python2 get-pip.py)
         sudo ln -sf /usr/bin/python2 /usr/bin/python
+        
         mkdir -p ~/bin
         curl https://googleapis.com > ~/bin/repo
         chmod a+x ~/bin/repo
@@ -35,15 +48,12 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Инициализация манифеста crDroid 10.0
         repo init --depth=1 -u https://github.com -b 10.0
         
-        # Клонирование дерева устройства, ядер Snapdragon и вендора для RMX1971 / RMX1973
         git clone https://github.com -b 10.0 device/realme/RMX1971
         git clone https://github.com -b 10.0 kernel/realme/sdm710
         git clone https://github.com -b 10.0 vendor/realme/RMX1971
         
-        # Фиксация исходного кода на стабильной версии 6.27
         cd vendor/crdroid && git checkout tags/6.27 || git checkout $(git log --all --grep="6.27" -n 1 --format="%H") || true
         cd ~/crdroid_workspace
 
@@ -51,7 +61,6 @@ jobs:
       run: |
         cd ~/crdroid_workspace
         
-        # ХАК: Принудительный ребрендинг версии прошивки с 6.27 на 6.30 в конфигурациях компилятора
         if [ -f vendor/crdroid/config/common.mk ]; then
           sed -i 's/CRDROID_VERSION := 6.27/CRDROID_VERSION := 6.30/g' vendor/crdroid/config/common.mk
         fi
@@ -59,19 +68,15 @@ jobs:
           sed -i 's/6.27/6.30/g' vendor/crdroid/config/version.mk
         fi
         
-        # Глубокая очистка системы от встроенного софта под чистую установку NikGApps
         sed -i '/Calendar/d' build/make/target/product/handheld_product.mk
         sed -i '/Email/d' build/make/target/product/handheld_product.mk
         sed -i '/Gallery2/d' build/make/target/product/handheld_product.mk
         sed -i '/Music/d' build/make/target/product/handheld_product.mk
         
-        # Специфические низкоуровневые флаги оптимизации для Qualcomm Snapdragon 712 (Kryo 360)
         echo "TARGET_CPU_ABI := arm64-v8a" >> device/realme/RMX1971/BoardConfig.mk
         echo "TARGET_USES_O3 := true" >> device/realme/RMX1971/BoardConfig.mk
         echo "MALLOC_SVELTE := true" >> device/realme/RMX1971/BoardConfig.mk
         echo "DEBUG_CFLAGS :=" >> device/realme/RMX1971/BoardConfig.mk
-        
-        # Активация аппаратного ускорения графического движка Skia через Vulkan API
         echo "TARGET_USES_VULKAN := true" >> device/realme/RMX1971/BoardConfig.mk
 
     - name: 'Настройка ccache (Ускорение компиляции)'
@@ -87,8 +92,6 @@ jobs:
         cd ~/crdroid_workspace
         . build/envsetup.sh
         lunch crdroid_RMX1971-userdebug
-        
-        # Компиляция прошивки со всеми доступными ядрами процессора
         mka bacon -j$(nproc --all)
 
     - name: 'Компиляция кастомного OrangeFox Recovery для RMX1971'
@@ -96,11 +99,8 @@ jobs:
         export PATH=$HOME/bin:$PATH
         cd ~/crdroid_workspace
         . build/envsetup.sh
-        
-        # Сборка кастомного образа рекавери для архитектуры sdm710
         mka recoveryimage -j$(nproc --all)
         
-        # Упаковка OrangeFox в flash-совместимый ZIP
         cd out/target/product/RMX1971/
         mkdir -p OF_Build/sdcard
         cp recovery.img OF_Build/
@@ -117,4 +117,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: OrangeFox-Recovery-Ultra-RMX1971
+        path: ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
+
         path: ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
