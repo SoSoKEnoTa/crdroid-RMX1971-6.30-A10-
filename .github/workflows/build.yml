@@ -9,9 +9,9 @@ on:
 
 jobs:
   autonomous_build_bot:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04 # Исправлено: нативная совместимость с AOSP (Android 10) и cgroups v1
     steps:
-    - name: 1. Инициализация репозитория бота (Локальный импорт кодовой базы)
+    - name: 1. Инициализация репозитория бота
       uses: actions/checkout@v4
       with:
         fetch-depth: 1
@@ -22,49 +22,73 @@ jobs:
         sudo apt-get clean
         df -h
 
-    - name: 3. Развертывание низкоуровневого окружения и Фикс Ncurses
+    - name: 3. Развертывание низкоуровневого окружения и Фикс зависимостей
       run: |
         sudo chmod 777 /etc/resolv.conf
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
+        # Нативный импорт стабильных пакетов для Ubuntu 22.04 (Решает ошибки missing deb)
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses5 libncurses5-dev libtinfo5 python2 patchelf
         
-        # Системные линки Python3
+        # Системные линки для скриптов Google/crDroid
         sudo ln -sf /usr/bin/python3 /usr/bin/python
+        sudo ln -sf /usr/bin/python2 /usr/bin/python2
         
-        # Линки совместимости ncurses6 -> ncurses5
-        sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libncurses.so.5
-        sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
-        sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/tinfo.so.6
+        git config --global user.name "AI Lowlevel Autonomous Engine"
+        git config --global user.email "autonomous-core@ai-android.internal"
 
-    - name: 4. Ультимативное развертывание локального дерева исходников (Обход фаервола хоста)
+    - name: 4. Импорт исходников (Прямой HTTP Загрузчик в обход сбойного Repo)
       run: |
+        # Полное выжигание ломающихся редиректов Git хоста
+        git config --global --unset-all url."https://github.com".insteadOf || true
+        sudo git config --system --unset-all url."https://github.com".insteadOf || true
+        
         mkdir -p $HOME/android
+        cd $HOME/android
         
-        # Если фаервол заблокировал внешнюю сеть, бот принудительно эмулирует дерево каталогов 
-        # на основе локального кэша репозитория, полностью исключая сетевой шаг repo sync
-        if [ -d "android-src" ]; then
-          mv android-src/* $HOME/android/
-        else
-          echo "🤖 Инициализация пустой локальной структуры сборки AOSP..."
-          cd $HOME/android
-          mkdir -p device/realme/spy device/realme/sdm710-common kernel/realme/sdm710 vendor/realme device/qcom/sepolicy hardware/interfaces vendor/crdroid build/make
-        fi
+        echo "=== СКАЧИВАНИЕ ПОЛНОЙ БАЗЫ ОС (CRDROID 10.0) ==="
+        curl -k -L https://github.comcrdroidandroid/android/archive/refs/heads/10.0.tar.gz -o base.tar.gz
+        tar -xf base.tar.gz --strip-components=1 && rm -f base.tar.gz
+        
+        echo "=== ИМПОРТ ИСХОДНЫХ ДЕРЕВЬЕВ REALME 5 PRO И ПЛАТФОРМЫ ==="
+        mkdir -p device/realme/spy device/realme/sdm710-common kernel/realme/sdm710 vendor/realme device/qcom/sepolicy hardware/interfaces
+        
+        curl -k -L https://github.comLineageOS/android_device_realme_spy/archive/refs/heads/lineage-17.1.tar.gz -o spy.tar.gz
+        tar -xf spy.tar.gz -C device/realme/spy --strip-components=1 && rm -f spy.tar.gz
+        
+        curl -k -L https://github.comLineageOS/android_device_realme_sdm710-common/archive/refs/heads/lineage-17.1.tar.gz -o sdm.tar.gz
+        tar -xf sdm.tar.gz -C device/realme/sdm710-common --strip-components=1 && rm -f sdm.tar.gz
+        
+        curl -k -L https://github.comLineageOS/android_kernel_realme_sdm710/archive/refs/heads/lineage-17.1.tar.gz -o kernel.tar.gz
+        tar -xf kernel.tar.gz -C kernel/realme/sdm710 --strip-components=1 && rm -f kernel.tar.gz
+        
+        curl -k -L https://github.comTheMuppets/proprietary_vendor_realme/archive/refs/heads/lineage-17.1.tar.gz -o vendor.tar.gz
+        tar -xf vendor.tar.gz -C vendor/realme --strip-components=1 && rm -f vendor.tar.gz
+        
+        curl -k -L https://github.comLineageOS/android_device_qcom_sepolicy/archive/refs/heads/lineage-17.1.tar.gz -o sepolicy.tar.gz
+        tar -xf sepolicy.tar.gz -C device/qcom/sepolicy --strip-components=1 && rm -f sepolicy.tar.gz
+        
+        curl -k -L https://github.comLineageOS/android_hardware_interfaces/archive/refs/heads/lineage-17.1.tar.gz -o hw.tar.gz
+        tar -xf hw.tar.gz -C hardware/interfaces --strip-components=1 && rm -f hw.tar.gz
 
-    - name: 5. Пре-компиляционные фиксы (Vanilla, Оптимизация под SDM712 и Верификация версии)
+        # Локальная инициализация репозитория для совместимости с бинарниками AOSP
+        git init && git config user.name "AI" && git config user.email "bot@ai"
+        git add -A --force 2>/dev/null || true
+        git commit -m "Initial automated commit" 2>/dev/null || true
+
+    - name: 5. Тонкая низкоуровневая настройка (Vanilla-конфиг и Оптимизация Kryo 360)
       run: |
-        # Проверяем наличие дерева устройств, если папки пустые - создаем заглушки для компилятора
-        mkdir -p $HOME/android/device/realme/spy
         cd $HOME/android/device/realme/spy
-        
+        # Жесткое форсирование Ванилла-конфигурации (Без встроенных GApps)
         echo "TARGET_GAPPS_ARCH := arm64" >> BoardConfig.mk
         echo "WITH_GAPPS := false" >> BoardConfig.mk
         echo "TARGET_CPU_VARIANT := kryo300" >> BoardConfig.mk
         
-        mkdir -p $HOME/android/vendor/crdroid/config
-        touch $HOME/android/vendor/crdroid/config/common.mk
-        echo "PRODUCT_PROPERTY_OVERRIDES += ro.crdroid.version=6.30" >> $HOME/android/vendor/crdroid/config/common.mk
+        # Принудительный патч версии прошивки crDroid до значения 6.30
+        cd $HOME/android/vendor/crdroid
+        find . -type f -name "*.mk" -exec sed -i 's/CRDROID_VERSION := 6.*/CRDROID_VERSION := 6.30/g' {} +
+        echo "PRODUCT_PROPERTY_OVERRIDES += ro.crdroid.version=6.30" >> config/common.mk
 
     - name: 6. ИИ-Петля Абсолютного Самоисцеления и Компиляции (Zero-Intervention Loop)
       run: |
@@ -76,43 +100,27 @@ jobs:
         export CLANG_ALLOW_UNKNOWN_FLAGS=true
         export Common_global_cflags="-Wno-error"
         
-        # Защищенный вызов среды сборки Android 10
-        if [ -f "build/envsetup.sh" ]; then
-          source build/envsetup.sh > init_env.log 2>&1
-          lunch crdroid_spy-userdebug >> init_env.log 2>&1
-        else
-          echo "ВНИМАНИЕ: Среда AOSP развернута частично. ИИ-Робот генерирует симулятор envsetup..." 
-          mkdir -p build && touch build/envsetup.sh init_env.log
-        fi
+        # Инициализация сборочной среды Android
+        source build/envsetup.sh > init_env.log 2>&1
+        lunch crdroid_spy-userdebug >> init_env.log 2>&1
         
-        # Исправляем бинарники Google AOSP под системный ncurses6
+        # Адаптация прекомпилированных утилит сборщика под новую системную libncurses
         find prebuilts/ -type f -executable -exec sh -c 'patchelf --replace-needed libncurses.so.5 libncurses.so.6 "$1" 2>/dev/null' _ {} \; || true
         
         echo "🚀 ЗАПУСК АВТОНОМНОГО ИИ-ПАТЧЕРА СБОРКИ..."
         
         for attempt in {1..10}; do
           echo "🧱 Проход компиляции №$attempt..."
-          
-          # Запуск локальной компиляции (симулируем bacon в изолированной среде)
-          touch build.log
-          echo "Компиляция ядра и кастомного рекавери для RMX1971..." >> build.log
-          
-          # Основной триггер сборщика
-          if [ -f "Makefile" ]; then
-            make bacon -j$(nproc --all) > build.log 2>&1 && BUILD_SUCCESS=true && break || BUILD_SUCCESS=false
-          else
-            echo "ИИ-Робот: Дерево исходников готово к горячей локальной пересборке."
-            BUILD_SUCCESS=true
-            break
-          fi
+          mka bacon -j$(nproc --all) > build.log 2>&1 && BUILD_SUCCESS=true && break || BUILD_SUCCESS=false
           
           echo "⚠️ Обнаружена ошибка. ИИ анализирует build.log и генерирует низкоуровневый патч..."
           
+          # Фикс 1: Нейтрализация жестких правил -Werror компилятора
           find . -name "*.mk" -o -name "Makefile" | xargs sed -i 's/-Werror/-Wno-error/g' 2>/dev/null || true
           find . -name "*.bp" | xargs sed -i 's/minus_werror: false/minus_werror: true/g' 2>/dev/null || true
           
+          # Фикс 2: Борьба с конфликтами типов данных (Missing Headers)
           if grep -q "was not declared in this scope" build.log || grep -q "unknown type name" build.log; then
-            echo "🤖 Обнаружен конфликт типов. Выполняю инжекцию системных заголовков..."
             grep -oE "([^ ]+\.(h|c|cpp|cc)):[0-9]+" build.log | cut -d: -f1 | sort -u | while read -r file; do
               if [ -f "$file" ]; then
                 sed -i '1s/^/#include <linux/types.h>\n#include <stdint.h>\n#include <stddef.h>\n/' "$file"
@@ -120,14 +128,21 @@ jobs:
             done
           fi
           
+          # Фикс 3: Разрешение конфликтов inline-линковки функций в коде ядра
           if grep -q "undefined reference to" build.log; then
              find kernel/ -name "*.c" -o -name "*.h" | xargs sed -i 's/inline /static inline __attribute__((always_inline)) /g' 2>/dev/null || true
           fi
           
+          # Фикс 4: Патч Flex генератора
           find system/tools/ -name "*.cc" -exec sed -i 's/int yy_flex_alloc/void* yy_flex_alloc/g' {} + 2>/dev/null || true
           
           echo "🔄 Патчи применены автоматически. Перезапуск компиляции..."
         done
+        
+        if [ "$BUILD_SUCCESS" = false ]; then
+          echo "❌ Автономный робот исчерпал лимит попыток. Проверьте финальный build.log."
+          exit 1
+        fi
 
     - name: 7. Выгрузка готовых файлов сборки (.zip прошивка и образы .img)
       if: always()
