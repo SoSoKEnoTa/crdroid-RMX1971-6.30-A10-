@@ -89,7 +89,6 @@ jobs:
         echo "TARGET_ARCH_VARIANT := armv8-a" >> BoardConfig.mk
         echo "PRODUCT_DEX_PREOPT_DEFAULT_FLAGS := --compiler-filter=speed" >> BoardConfig.mk
         
-        # Динамический фикс папки вендора (Решает проблему No such file or directory)
         cd $HOME/android
         VENDOR_DIR=$(find vendor -maxdepth 2 -type d -name "crdroid" -o -name "cm" -o -name "lineage" | head -n 1)
         if [ -z "$VENDOR_DIR" ]; then
@@ -182,3 +181,6 @@ jobs:
 
     - name: 8. Выгрузка готовых Flash-пакетов (.ZIP Прошивка, Рекавери и Ядро)
       if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: crDroid-6.30-Final-ZIP-Packages
