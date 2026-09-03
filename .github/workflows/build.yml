@@ -39,18 +39,29 @@ jobs:
         export PATH=$HOME/bin:$PATH
         git config --global user.name "AI-LowLevel-Developer"
         git config --global user.email "developer@ai-core.internal"
+        
+        # Исправление сбоев сетевого git при работе с большими объемами данных Android
+        git config --global http.postBuffer 524288000
+        git config --global http.lowSpeedLimit 0
+        git config --global http.lowSpeedTime 999999
+        
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Инициализация и синхронизация ядра прошивки crDroid
+        # Шаг 1: Инициализируем только чистую ОС crDroid без привязки к устройствам
         repo init --depth=1 -u https://github.com -b 10.0
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         
-        # ХАК: Клонирование ГАРАНТИРОВАННО ЖИВЫХ репозиториев устройства, ядра и вендора для RMX1971
-        git clone https://github.com -b q device/realme/RMX1971
-        git clone https://github.com -b q kernel/realme/sdm710
-        git clone https://github.com -b q vendor/realme/RMX1971
+        # Шаг 2: Скачиваем базовую систему. Игнорируем внутренние битые ссылки манифестов устройств
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags || true
         
+        # Шаг 3: Принудительное независимое клонирование живых репозиториев Realme 5 Pro напрямую в обход repo
+        rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
+        
+        git clone --depth=1 https://github.com -b q device/realme/RMX1971
+        git clone --depth=1 https://github.com -b q kernel/realme/sdm710
+        git clone --depth=1 https://github.com -b q vendor/realme/RMX1971
+        
+        # Фиксируем ветку кастомизации на стабильном срезе
         cd vendor/crdroid && git checkout tags/6.27 || git checkout $(git log --all --grep="6.27" -n 1 --format="%H") || true
 
     - name: Code optimization and Fake-Versing
@@ -102,4 +113,6 @@ jobs:
         name: crDroid-6.30-Vanilla-Realme-RMX1971
         path: |
           ~/crdroid_workspace/out/target/product/RMX1971/crDroid*.zip
+          ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
+
           ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
