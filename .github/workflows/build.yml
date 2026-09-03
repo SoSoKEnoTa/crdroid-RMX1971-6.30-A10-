@@ -31,7 +31,7 @@ jobs:
         # Системные линки Python3
         sudo ln -sf /usr/bin/python3 /usr/bin/python
         
-        # Портативный бэкпорт Python 2.7 (критично для скриптов сборки Android 10 в Ubuntu 24.04)
+        # Портативный бэкпорт Python 2.7
         curl -L https://github.com > $HOME/python2
         chmod a+x $HOME/python2
         sudo ln -sf $HOME/python2 /usr/bin/python2
@@ -41,7 +41,7 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
 
-        # ГАРАНТИРОВАННЫЙ СИНТАКСИЧЕСКИЙ ФИКС СТРОКИ 48 (Чистый YAML-блок)
+        # АБСОЛЮТНЫЙ СИНТАКСИЧЕСКИЙ ФИКС СТРОКИ 48 (Создание скрипта через блочный shell)
         mkdir -p $HOME/bin
         cat << 'EOF' > $HOME/bin/repo
 #!/usr/bin/env python3
@@ -50,13 +50,13 @@ import sys
 import subprocess
 
 def main():
-    home = os.path.expanduser("~")
-    repo_dir = os.path.join(home, ".repo", "repo")
-    main_py = os.path.join(repo_dir, "main.py")
-    if not os.path.exists(main_py):
-        os.makedirs(os.path.join(home, ".repo"), exist_ok=True)
-        subprocess.run(["git", "clone", "https://github.com", repo_dir, "--depth=1"], check=True)
-    os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
+    home_dir = os.path.expanduser("~")
+    repo_directory = os.path.join(home_dir, ".repo", "repo")
+    main_script = os.path.join(repo_directory, "main.py")
+    if not os.path.exists(main_script):
+        os.makedirs(os.path.join(home_dir, ".repo"), exist_ok=True)
+        subprocess.run(["git", "clone", "https://github.com", repo_directory, "--depth=1"], check=True)
+    os.execv(sys.executable, [sys.executable, main_script] + sys.argv[1:])
 
 if __name__ == "__main__":
     main()
