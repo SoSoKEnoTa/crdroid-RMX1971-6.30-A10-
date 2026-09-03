@@ -41,9 +41,9 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
 
-    - name: 4. Высокоскоростной импорт исходников (Прямая и чистая инициализация)
+    - name: 4. Высокоскоростной импорт исходников (Галактический фикс зеркала Repo)
       run: |
-        # Полностью очищаем глобальные правила во избежание ложных склеек адресов хоста
+        # Полное уничтожение любых кривых правил подмены ссылок хоста
         git config --global --unset-all url."https://github.com".insteadOf || true
         
         git config --global user.name "AI Lowlevel Autonomous Engine"
@@ -52,9 +52,13 @@ jobs:
         mkdir -p $HOME/android
         cd $HOME/android
         
-        # Инициализируем манифест с жестким указанием репозитория самого инструмента repo
+        # СОЧНЕЙШИЙ ИНЖЕНЕРНЫЙ ХАК: Разворачиваем утилиту локально, обманывая ломающийся парсер Google
+        mkdir -p .repo
+        git clone https://github.comGerritCodeReview/git-repo.git .repo/repo --depth=1
+        
+        # Инициализируем исходники из локально созданного зеркала! Никаких внешних редиректов!
         export REPO_SKIP_BOOTSTRAP=1
-        repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify --repo-url=https://github.comGerritCodeReview/git-repo.git
+        repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify
         
         # Инжекция манифестов LineageOS во внутреннюю структуру утилиты repo
         mkdir -p .repo/local_manifests
@@ -71,7 +75,7 @@ jobs:
         </manifest>
         EOF
         
-        # Синхронизация папок операционной системы
+        # Запуск параллельной выкачки всех папок операционной системы
         echo "=== ЗАПУСК ПОЛНОЙ СИНХРОНИЗАЦИИ ВСЕХ ПАПОК ОС ==="
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
@@ -159,3 +163,4 @@ jobs:
         path: |
           /home/runner/android/init_env.log
           /home/runner/android/build.log
+
