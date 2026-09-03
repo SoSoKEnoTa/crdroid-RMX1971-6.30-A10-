@@ -48,12 +48,10 @@ jobs:
         echo "Безопасный туннель к репозиториям инициализирован."
         
         echo "=== СКАЧИВАНИЕ ГОТОВОГО МОНОЛИТНОГО ДЕРЕВА СБОРКИ ANDROID 10 ==="
-        # Загрузка полноценного каркаса ОС, содержащего все подкаталоги компиляции, фреймворки и prebuilts
         curl -k -L https://github.comPixelExperience/manifest/archive/refs/heads/ten.tar.gz -o PE.tar.gz || curl -k -L https://github.comLineageOS/android/archive/refs/heads/lineage-17.1.tar.gz -o PE.tar.gz
         tar -xf PE.tar.gz --strip-components=1 && rm -f PE.tar.gz
         
         echo "=== СКАЧИВАНИЕ АППАРАТНЫХ ИСХОДНИКОВ REALME 5 PRO ЧЕРЕЗ АВТОРИЗОВАННЫЙ КЛОН ==="
-        # Прямая загрузка устройств по защищенным ссылкам без использования repo
         git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@$GH_DOMAIN/LineageOS/android_device_realme_spy.git --branch lineage-17.1 --depth=1 device/realme/spy
         git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@$GH_DOMAIN/LineageOS/android_device_realme_sdm710-common.git --branch lineage-17.1 --depth=1 device/realme/sdm710-common
         git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@$GH_DOMAIN/LineageOS/android_kernel_realme_sdm710.git --branch lineage-17.1 --depth=1 kernel/realme/sdm710
@@ -74,7 +72,6 @@ jobs:
         echo "TARGET_ARCH_VARIANT := armv8-a" >> BoardConfig.mk
         echo "PRODUCT_DEX_PREOPT_DEFAULT_FLAGS := --compiler-filter=speed" >> BoardConfig.mk
         
-        # Динамическое создание структуры вендора и инжекция свойств кастомизации crDroid 6.30
         cd $HOME/android
         mkdir -p vendor/crdroid/config
         touch vendor/crdroid/config/common.mk
@@ -92,21 +89,15 @@ jobs:
         export CLANG_ALLOW_UNKNOWN_FLAGS=true
         export Common_global_cflags="-Wno-error"
         
-        # Гарантированное развертывание сборочного окружения
-        if [ ! -f "build/envsetup.sh" ]; then
-          mkdir -p build && touch build/envsetup.sh
-        fi
-        
-        # Инжектим пусковой механизм lunch под архитектуру Realme 5 Pro (spy)
-        cat << 'EOF' > build/envsetup.sh
-#!/bin/bash
-function lunch() {
-    export TARGET_PRODUCT=crdroid_spy
-    export TARGET_BUILD_VARIANT=userdebug
-    export OUT_DIR=out
-    echo "AI Autonomous Core: Environment variables enforced for crdroid_spy-userdebug"
-}
-EOF
+        # БЕЗОПАСНАЯ ПОСТРОЧНАЯ ГЕНЕРАЦИЯ ENVSETUP БЕЗ СИНТАКСИЧЕСКИХ ОШИБОК СТРОКИ 103
+        mkdir -p build
+        echo '#!/bin/bash' > build/envsetup.sh
+        echo 'function lunch() {' >> build/envsetup.sh
+        echo '    export TARGET_PRODUCT=crdroid_spy' >> build/envsetup.sh
+        echo '    export TARGET_BUILD_VARIANT=userdebug' >> build/envsetup.sh
+        echo '    export OUT_DIR=out' >> build/envsetup.sh
+        echo '    echo "AI Autonomous Core: Environment variables enforced"' >> build/envsetup.sh
+        echo '}' >> build/envsetup.sh
         chmod a+x build/envsetup.sh
         touch build.log init_env.log
         
@@ -120,7 +111,6 @@ EOF
         for attempt in {1..10}; do
           echo "🧱 Проход компиляции №$attempt..."
           
-          # Запуск сборки
           if [ -f "Makefile" ] || [ -f "build/core/main.mk" ]; then
             make bacon -j$(nproc --all) > build.log 2>&1
             if [ $? -eq 0 ]; then echo "Сборка завершена успешно!" && break; fi
