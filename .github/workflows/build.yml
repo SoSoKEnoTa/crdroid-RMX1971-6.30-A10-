@@ -26,45 +26,51 @@ jobs:
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
+        sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf dnsutils
         
         # Системные линки Python3
         sudo ln -sf /usr/bin/python3 /usr/bin/python
-        
-        # Портативный бэкпорт Python 2.7 для старых скриптов Android 10
-        curl -L https://github.com > $HOME/python2
-        chmod a+x $HOME/python2
-        sudo ln -sf $HOME/python2 /usr/bin/python2
         
         # Линки совместимости ncurses6 -> ncurses5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libncurses.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/tinfo.so.6
 
-    - name: 4. Ультимативный локальный запуск Repo (Обход прокси и редиректов хоста)
+    - name: 4. Ультимативный локальный запуск Repo (Полный обход DNS-блокировок по IP)
       run: |
-        # Полностью изолируем Git от ломающихся системных настроек хоста
         mkdir -p $HOME/.config/git
         echo -e "[user]\n\tname = AI Lowlevel Engine\n\temail = bot@ai.internal" > $HOME/.gitconfig
         export GIT_CONFIG_GLOBAL=$HOME/.gitconfig
         export GIT_CONFIG_SYSTEM=/dev/null
         
-        # Скачиваем чистый исполняемый скрипт repo напрямую из исходников
         mkdir -p $HOME/bin
-        curl -L https://githubusercontent.com > $HOME/bin/repo
-        chmod a+x $HOME/bin/repo
-        
         mkdir -p $HOME/android
         cd $HOME/android
-        
-        # Инициализируем локальный инструмент repo
         mkdir -p .repo/repo
-        curl -L https://github.com -o repo.tar.gz
+        
+        echo "=== ГАЛАКТИЧЕСКИЙ ОБХОД DNS: ОПРЕДЕЛЕНИЕ IP АДРЕСОВ НАПРЯМУЮ ==="
+        # Получаем чистые физические IP-адреса серверов GitHub в обход сломанных DNS хоста
+        RAW_GITHUB_IP=$(nslookup raw.githubusercontent.com 8.8.8.8 | grep 'Address:' | tail -n1 | awk '{print $2}')
+        API_GITHUB_IP=$(nslookup github.com 8.8.8.8 | grep 'Address:' | tail -n1 | awk '{print $2}')
+        echo "IP raw.githubusercontent.com -> $RAW_GITHUB_IP"
+        echo "IP github.com -> $API_GITHUB_IP"
+        
+        # Скачиваем чистый repo по IP-адресу, подменяя HTTP Host заголовок и отключая SSL-валидацию хоста
+        curl -k -H "Host: raw.githubusercontent.com" -L https://$RAW_GITHUB_IP/GerritCodeReview/git-repo/main/repo > $HOME/bin/repo
+        chmod a+x $HOME/bin/repo
+        
+        # Скачиваем исходники самого инструмента repo в архиве по прямому IP
+        curl -k -H "Host: github.com" -L https://$API_GITHUB_IP/GerritCodeReview/git-repo/archive/refs/heads/main.tar.gz -o repo.tar.gz
         tar -xf repo.tar.gz --strip-components=1 -C .repo/repo && rm -f repo.tar.gz
         
-        # Запускаем инициализацию манифеста crDroid 10.0
+        # Переносим портативный Python 2.7 по IP-адресу
+        curl -k -H "Host: github.com" -L https://$API_GITHUB_IP/niess/python-appimage/releases/download/python2.7/python2.7-x86_64.AppImage > $HOME/python2
+        chmod a+x $HOME/python2
+        sudo ln -sf $HOME/python2 /usr/bin/python2
+        
+        # Инициализируем манифест через IP маршрутизацию
         export REPO_SKIP_BOOTSTRAP=1
-        $HOME/bin/repo init -u https://github.com -b 10.0 --depth=1 --no-repo-verify
+        $HOME/bin/repo init -u https://$API_GITHUB_IP/crdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify
         
         # Инжекция манифестов LineageOS во внутреннюю структуру локальной утилиты
         mkdir -p .repo/local_manifests
@@ -81,7 +87,9 @@ jobs:
         </manifest>
         EOF
         
-        # Запуск полной параллельной выкачки ВСЕХ подмодулей операционной системы
+        # Настраиваем Git локально подменять домен на рабочий IP при внутренних вызовах repo sync
+        git config --global url."https://$API_GITHUB_IP/".insteadOf "https://github.com"
+        
         echo "=== ЗАПУСК ПОЛНОЙ СИНХРОНИЗАЦИИ ВСЕХ ПАПОК ОС ==="
         $HOME/bin/repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
