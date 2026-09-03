@@ -36,8 +36,12 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/tinfo.so.6
 
-    - name: 4. Ультимативный локальный запуск Repo (Гарантированный фикс IPv4)
+    - name: 4. Ультимативный локальный запуск Repo (Низкоуровневый Фикс /etc/hosts)
       run: |
+        # Полностью очищаем старые ломающиеся хаки подмены ссылок
+        git config --global --unset-all url."https://github.com".insteadOf || true
+        sudo git config --system --unset-all url."https://github.com".insteadOf || true
+        
         mkdir -p $HOME/.config/git
         echo -e "[user]\n\tname = AI Lowlevel Engine\n\temail = bot@ai.internal" > $HOME/.gitconfig
         export GIT_CONFIG_GLOBAL=$HOME/.gitconfig
@@ -48,33 +52,35 @@ jobs:
         cd $HOME/android
         mkdir -p .repo/repo
         
-        echo "=== ГАЛАКТИЧЕСКИЙ ОБХОД DNS: ЖЕСТКАЯ ФИКСАЦИЯ ЧИСТЫХ IPv4 АДРЕСОВ ==="
-        # Вынуждаем DNS вернуть исключительно IPv4 адреса (A-запись), полностью игнорируя проблемный IPv6
-        RAW_GITHUB_IP=$(nslookup -query=A raw.githubusercontent.com 8.8.8.8 | grep 'Address:' | tail -n1 | awk '{print $2}')
+        echo "=== ГАЛАКТИЧЕСКИЙ ОБХОД DNS: ИНЖЕКЦИЯ В /ETC/HOSTS ==="
+        # Получаем чистые IPv4 адреса через публичный DNS Google
+        RAW_GITHUB_IP=$(nslookup -query=A ://githubusercontent.com 8.8.8.8 | grep 'Address:' | tail -n1 | awk '{print $2}')
         API_GITHUB_IP=$(nslookup -query=A github.com 8.8.8.8 | grep 'Address:' | tail -n1 | awk '{print $2}')
-        echo "Стабильный IPv4 raw.githubusercontent.com -> $RAW_GITHUB_IP"
-        echo "Стабильный IPv4 github.com -> $API_GITHUB_IP"
         
-        # Защитный фикс: если DNS выдал пустоту, жестко прописываем резервные публичные IP GitHub
+        # Резервный хардкод IP на случай если nslookup вернул пустоту
         if [ -z "$RAW_GITHUB_IP" ]; then RAW_GITHUB_IP="185.199.108.133"; fi
         if [ -z "$API_GITHUB_IP" ]; then API_GITHUB_IP="140.82.114.4"; fi
         
-        # Скачиваем чистый repo по строгому IPv4-маршруту
-        curl -k -H "Host: raw.githubusercontent.com" -L https://$RAW_GITHUB_IP/GerritCodeReview/git-repo/main/repo > $HOME/bin/repo
+        echo "Запись в системный маршрутизатор хоста:"
+        echo "$API_GITHUB_IP github.com" | sudo tee -a /etc/hosts
+        echo "$RAW_GITHUB_IP ://githubusercontent.com" | sudo tee -a /etc/hosts
+        
+        # Скачиваем чистый repo стандартно по домену (SSL теперь доволен!)
+        curl -L https://://githubusercontent.com/GerritCodeReview/git-repo/main/repo > $HOME/bin/repo
         chmod a+x $HOME/bin/repo
         
-        # Скачиваем исходники самого инструмента repo в архиве по прямому IPv4
-        curl -k -H "Host: github.com" -L https://$API_GITHUB_IP/GerritCodeReview/git-repo/archive/refs/heads/main.tar.gz -o repo.tar.gz
+        # Скачиваем архив исходников самого инструмента repo
+        curl -L https://github.comGerritCodeReview/git-repo/archive/refs/heads/main.tar.gz -o repo.tar.gz
         tar -xf repo.tar.gz --strip-components=1 -C .repo/repo && rm -f repo.tar.gz
         
-        # Переносим портативный Python 2.7 по прямому IPv4
-        curl -k -H "Host: github.com" -L https://$API_GITHUB_IP/niess/python-appimage/releases/download/python2.7/python2.7-x86_64.AppImage > $HOME/python2
+        # Переносим портативный Python 2.7
+        curl -L https://github.comniess/python-appimage/releases/download/python2.7/python2.7-x86_64.AppImage > $HOME/python2
         chmod a+x $HOME/python2
         sudo ln -sf $HOME/python2 /usr/bin/python2
         
-        # Инициализируем манифест через чистый IPv4
+        # Инициализируем манифест по стандартным ссылкам (внутренне трафик пойдет по зашитым IP!)
         export REPO_SKIP_BOOTSTRAP=1
-        $HOME/bin/repo init -u https://$API_GITHUB_IP/crdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify
+        $HOME/bin/repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify
         
         # Инжекция манифестов LineageOS во внутреннюю структуру локальной утилиты
         mkdir -p .repo/local_manifests
@@ -90,9 +96,6 @@ jobs:
           <project name="LineageOS/android_hardware_interfaces" path="hardware/interfaces" remote="github" revision="lineage-17.1" />
         </manifest>
         EOF
-        
-        # Настраиваем Git локально подменять домен на рабочий IPv4 при внутренних вызовах repo sync
-        git config --global url."https://$API_GITHUB_IP/".insteadOf "https://github.com"
         
         echo "=== ЗАПУСК ПОЛНОЙ СИНХРОНИЗАЦИИ ВСЕХ ПАПОК ОС ==="
         $HOME/bin/repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
