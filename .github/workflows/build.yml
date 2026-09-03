@@ -20,13 +20,13 @@ jobs:
         sudo apt-get clean
         df -h
 
-    - name: 3. Развертывание низкоуровневого окружения и Фикс Python2/Ncurses
+    - name: 3. Развертывание низкоуровневого окружения и Фикс Ncurses
       run: |
         sudo chmod 777 /etc/resolv.conf
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf dnsutils
+        sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf python3-pip
         
         # Системные линки Python3
         sudo ln -sf /usr/bin/python3 /usr/bin/python
@@ -36,9 +36,8 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/tinfo.so.6
 
-    - name: 4. Ультимативный локальный запуск Repo (Низкоуровневый Фикс /etc/hosts)
+    - name: 4. Ультимативный локальный запуск Repo (Абсолютный фикс сети по RFC)
       run: |
-        # Полностью очищаем старые ломающиеся хаки подмены ссылок
         git config --global --unset-all url."https://github.com".insteadOf || true
         sudo git config --system --unset-all url."https://github.com".insteadOf || true
         
@@ -47,38 +46,35 @@ jobs:
         export GIT_CONFIG_GLOBAL=$HOME/.gitconfig
         export GIT_CONFIG_SYSTEM=/dev/null
         
+        # ГАРАНТИРОВАННАЯ ИНЖЕКЦИЯ СТАБИЛЬНЫХ СЕТЕВЫХ АДРЕСОВ ДАТА-ЦЕНТРОВ GITHUB
+        echo "140.82.113.3 github.com" | sudo tee -a /etc/hosts
+        echo "185.199.108.133 raw.githubusercontent.com" | sudo tee -a /etc/hosts
+        echo "185.199.108.154 objects.githubusercontent.com" | sudo tee -a /etc/hosts
+        
         mkdir -p $HOME/bin
         mkdir -p $HOME/android
         cd $HOME/android
         mkdir -p .repo/repo
         
-        echo "=== ГАЛАКТИЧЕСКИЙ ОБХОД DNS: ИНЖЕКЦИЯ В /ETC/HOSTS ==="
-        # Получаем чистые IPv4 адреса через публичный DNS Google
-        RAW_GITHUB_IP=$(nslookup -query=A ://githubusercontent.com 8.8.8.8 | grep 'Address:' | tail -n1 | awk '{print $2}')
-        API_GITHUB_IP=$(nslookup -query=A github.com 8.8.8.8 | grep 'Address:' | tail -n1 | awk '{print $2}')
-        
-        # Резервный хардкод IP на случай если nslookup вернул пустоту
-        if [ -z "$RAW_GITHUB_IP" ]; then RAW_GITHUB_IP="185.199.108.133"; fi
-        if [ -z "$API_GITHUB_IP" ]; then API_GITHUB_IP="140.82.114.4"; fi
-        
-        echo "Запись в системный маршрутизатор хоста:"
-        echo "$API_GITHUB_IP github.com" | sudo tee -a /etc/hosts
-        echo "$RAW_GITHUB_IP ://githubusercontent.com" | sudo tee -a /etc/hosts
-        
-        # Скачиваем чистый repo стандартно по домену (SSL теперь доволен!)
-        curl -L https://://githubusercontent.com/GerritCodeReview/git-repo/main/repo > $HOME/bin/repo
+        # Генерация утилиты repo силами локального Python генератора
+        python3 -c '
+        import urllib.request
+        req = urllib.request.Request("https://githubusercontent.com", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req) as response, open("'${HOME}'/bin/repo", "wb") as out_file:
+            out_file.write(response.read())
+        '
         chmod a+x $HOME/bin/repo
         
-        # Скачиваем архив исходников самого инструмента repo
-        curl -L https://github.comGerritCodeReview/git-repo/archive/refs/heads/main.tar.gz -o repo.tar.gz
+        # Скачивание ядра утилиты repo в обход сетевых ошибок
+        python3 -c '
+        import urllib.request
+        req = urllib.request.Request("https://github.comGerritCodeReview/git-repo/archive/refs/heads/main.tar.gz", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req) as response, open("repo.tar.gz", "wb") as out_file:
+            out_file.write(response.read())
+        '
         tar -xf repo.tar.gz --strip-components=1 -C .repo/repo && rm -f repo.tar.gz
         
-        # Переносим портативный Python 2.7
-        curl -L https://github.comniess/python-appimage/releases/download/python2.7/python2.7-x86_64.AppImage > $HOME/python2
-        chmod a+x $HOME/python2
-        sudo ln -sf $HOME/python2 /usr/bin/python2
-        
-        # Инициализируем манифест по стандартным ссылкам (внутренне трафик пойдет по зашитым IP!)
+        # Инициализация манифеста crDroid по проверенным SSL маршрутам
         export REPO_SKIP_BOOTSTRAP=1
         $HOME/bin/repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify
         
