@@ -51,10 +51,6 @@ jobs:
         aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/crdroidandroid/android/archive/refs/heads/10.0.tar.gz -o crdroid.tar.gz
         tar -xf crdroid.tar.gz --strip-components=1 && rm -f crdroid.tar.gz
         
-        echo "=== СКАЧИВАНИЕ СИСТЕМНЫХ КОМПОНЕНТОВ СБОРКИ (BUILD/MAKE) ==="
-        aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/aosp-mirror/platform_build/archive/refs/tags/android-10.0.0_r75.tar.gz -o build.tar.gz
-        mkdir -p build/make && tar -xf build.tar.gz -C build/make --strip-components=1 && rm -f build.tar.gz
-        
         echo "=== ИМПОРТ АППАРАТНЫХ ИСХОДНИКОВ REALME 5 PRO И ПЛАТФОРМЫ ==="
         mkdir -p device/realme/spy device/realme/sdm710-common kernel/realme/sdm710 vendor/realme device/qcom/sepolicy hardware/interfaces
         
@@ -133,7 +129,6 @@ jobs:
         
         echo "🚀 ЗАПУСК АВТОНОМНОГО ИИ-ПАТЧЕРА СБОРКИ..."
         
-        # Полностью стерильный и изолированный цикл компиляции AOSP
         for attempt in {1..10}; do
           echo "🧱 Проход компиляции №$attempt..."
           
@@ -175,7 +170,7 @@ jobs:
           echo "🔄 Патчи применены. Перезапуск компиляции..."
         done
 
-    - name: 7. Сборка and сочная упаковка рекавери и ядра в независимые Flash-пакеты ZIP
+    - name: 7. Сборка и сочная упаковка рекавери и ядра в независимые Flash-пакеты ZIP
       run: |
         TARGET_DIR="$HOME/android/out/target/product/spy"
         mkdir -p $TARGET_DIR
@@ -190,3 +185,10 @@ jobs:
         echo "ui_print \"Installing crDroid 6.30 TWRP Recovery...\"" >> recovery_zip/META-INF/com/google/android/update-binary
         echo "dd if=/tmp/recovery.img of=/dev/block/by-name/recovery" >> recovery_zip/META-INF/com/google/android/update-binary
         touch recovery_zip/META-INF/com/google/android/updater-script
+        cd recovery_zip && zip -r3 ../crDroid-6.30-Recovery-RMX1971.zip . * && cd ..
+        rm -rf recovery_zip
+        
+        echo "=== СБОРКА И УПАКОВКА CUSTOM KERNEL ZIP ==="
+        mkdir -p kernel_zip/META-INF/com/google/android
+        cp boot.img kernel_zip/boot.img
+        echo "#!/sbin/sh" > kernel_zip/META-INF/com/google/android/update-binary
