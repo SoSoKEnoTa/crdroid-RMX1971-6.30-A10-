@@ -26,20 +26,16 @@ jobs:
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev wget
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
         
         sudo ln -sf /usr/bin/python3 /usr/bin/python
         
-        echo "=== СБОРКА СОВМЕСТИМОСТИ NCURSES ==="
-        wget https://gnu.org
-        tar -xf ncurses-6.2.tar.gz && cd ncurses-6.2
-        ./configure --with-shared --with-versioned-syms --enable-widec --with-ticlib
-        make -j$(nproc --all)
-        sudo make install
-        sudo ln -sf /usr/local/lib/libncursesw.so.6 /usr/lib/libncurses.so.5
-        sudo ln -sf /usr/local/lib/libtinfo.so.6 /usr/lib/libtinfo.so.5
-        cd .. && rm -rf ncurses-6.2*
+        # ЛОКАЛЬНЫЙ ФИКС БЕЗ СКАЧИВАНИЙ: Перенаправляем вызовы на системную libncurses6
+        sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libncurses.so.5
+        sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
+        sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
 
+        # Автоматическая генерация изолированного скрипта Repo
         mkdir -p $HOME/bin
         printf '%s\n' \
           '#!/usr/bin/env python' \
@@ -104,13 +100,16 @@ jobs:
         export USE_CCACHE=1
         ccache -M 50G
         
-        # Глобальные флаги совместимости для компиляторов Ubuntu 24.04
+        # Переменные совместимости
         export CLANG_ALLOW_UNKNOWN_FLAGS=true
         export Common_global_cflags="-Wno-error"
         
         echo "=== ИНИЦИАЛИЗАЦИЯ СРЕДЫ ==="
         source build/envsetup.sh > init_env.log 2>&1
         lunch crdroid_spy-userdebug >> init_env.log 2>&1 || echo "LUNCH_FAILED=true" >> init_env.log
+        
+        # Динамическая замена бинарных зависимостей инструментов сборки Google AOSP
+        find prebuilts/ -type f -executable -exec sh -c 'patchelf --replace-needed libncurses.so.5 libncurses.so.6 "$1" 2>/dev/null' _ {} \; || true
         
         echo "=== СТАРТ УМНОЙ СБОРКИ ==="
         mka bacon -j$(nproc --all) > build.log 2>&1 || BUILD_FAILED=true
