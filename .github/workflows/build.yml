@@ -48,9 +48,9 @@ jobs:
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Мимикрия структуры под компилятор crDroid
+        # Делаем копию вендора, чтобы работали оба имени (lineage и crdroid)
         if [ -d "vendor/lineage" ]; then
-          mv vendor/lineage vendor/crdroid
+          cp -r vendor/lineage vendor/crdroid
         fi
         
         rm -rf .repo
@@ -75,18 +75,30 @@ jobs:
     - name: Code optimization and Fake-Versing
       run: |
         cd ~/crdroid_workspace
+        
+        # Безопасный ребрендинг версии прошивки с проверкой существования файлов
         if [ -f vendor/crdroid/config/common.mk ]; then
           sed -i 's/CRDROID_VERSION := 6.27/CRDROID_VERSION := 6.30/g' vendor/crdroid/config/common.mk
         fi
         if [ -f vendor/crdroid/config/version.mk ]; then
           sed -i 's/6.27/6.30/g' vendor/crdroid/config/version.mk
         fi
-        sed -i '/Calendar/d; /Email/d; /Gallery2/d; /Music/d' build/make/target/product/handheld_product.mk
-        echo "TARGET_CPU_ABI := arm64-v8a" >> device/realme/RMX1971/BoardConfig.mk
-        echo "TARGET_USES_O3 := true" >> device/realme/RMX1971/BoardConfig.mk
-        echo "MALLOC_SVELTE := true" >> device/realme/RMX1971/BoardConfig.mk
-        echo "DEBUG_CFLAGS :=" >> device/realme/RMX1971/BoardConfig.mk
-        echo "TARGET_USES_VULKAN := true" >> device/realme/RMX1971/BoardConfig.mk
+        
+        # Безопасное удаление тяжелого стокового софта (проверяем все возможные пути в Android 10)
+        for mk_file in build/make/target/product/handheld_product.mk build/make/target/product/core_tiny.mk build/make/target/product/main.mk; do
+          if [ -f "$mk_file" ]; then
+            sed -i '/Calendar/d; /Email/d; /Gallery2/d; /Music/d' "$mk_file"
+          fi
+        done
+        
+        # Внедрение низкоуровневых флагов оптимизации в BoardConfig устройства
+        if [ -f device/realme/RMX1971/BoardConfig.mk ]; then
+          echo "TARGET_CPU_ABI := arm64-v8a" >> device/realme/RMX1971/BoardConfig.mk
+          echo "TARGET_USES_O3 := true" >> device/realme/RMX1971/BoardConfig.mk
+          echo "MALLOC_SVELTE := true" >> device/realme/RMX1971/BoardConfig.mk
+          echo "DEBUG_CFLAGS :=" >> device/realme/RMX1971/BoardConfig.mk
+          echo "TARGET_USES_VULKAN := true" >> device/realme/RMX1971/BoardConfig.mk
+        fi
 
     - name: Setup ccache
       run: |
@@ -100,7 +112,9 @@ jobs:
         export PATH=$HOME/bin:$PATH
         cd ~/crdroid_workspace
         . build/envsetup.sh
-        lunch lineage_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug
+        
+        # Пробуем вызвать lunch под обоими именами конфигурации хоста
+        lunch lineage_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug || lunch lineage_RMX1971-eng
         mka bacon -j$(nproc --all)
 
     - name: Compile Recovery
@@ -120,5 +134,6 @@ jobs:
       with:
         name: crDroid-6.30-Vanilla-Realme-RMX1971
         path: |
+          ~/crdroid_workspace/out/target/product/RMX1971/lineage*.zip
           ~/crdroid_workspace/out/target/product/RMX1971/crDroid*.zip
           ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
