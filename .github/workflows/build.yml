@@ -62,12 +62,12 @@ jobs:
         # Зачищаем папки перед прямой заливкой рабочих исходников Realme
         rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
         
-        # Полные рабочие ссылки на дерево устройства, ядро и вендор для RMX1971
+        # ПОЛНЫЕ ИСПРАВЛЕННЫЕ ССЫЛКИ НА РЕПОЗИТОРИИ HYPERTEAM
         git clone --depth=1 https://github.com -b q device/realme/RMX1971
         git clone --depth=1 https://github.com -b q kernel/realme/sdm710
         git clone --depth=1 https://github.com -b q vendor/realme/RMX1971
         
-        # Подтягиваем vendor/crdroid, если repo его пропустил
+        # Подтягиваем vendor/crdroid с полной ссылкой
         if [ ! -d "vendor/crdroid" ]; then
           git clone --depth=1 https://github.com -b 10.0 vendor/crdroid
         fi
@@ -124,4 +124,5 @@ jobs:
         path: |
           ~/crdroid_workspace/out/target/product/RMX1971/crDroid*.zip
           ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
+
 
