@@ -40,12 +40,19 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libncurses.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
+
+    - name: 4. Радикальный фикс Git-конфигурации и скачивание исходников
+      run: |
+        # ГАРАНТИРОВАННЫЙ СБРОС БИТЫХ НАСТРОЕК GIT И ПРОКСИ ХОСТА
+        git config --global --unset-all http.proxy || true
+        git config --global --unset-all https.proxy || true
+        git config --global --unset-all url.https://github.com || true
+        git config --global --unset-all url.git@github.com:.insteadof || true
         
+        # Переинициализация базовых параметров
         git config --global user.name "AI Lowlevel Autonomous Engine"
         git config --global user.email "autonomous-core@ai-android.internal"
-
-    - name: 4. Высокоскоростное скачивание исходников (Прямой Git-Клон без использования Repo)
-      run: |
+        
         mkdir -p $HOME/android
         cd $HOME/android
         
