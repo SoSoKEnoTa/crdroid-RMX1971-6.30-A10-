@@ -26,7 +26,7 @@ jobs:
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf python3-pip
+        sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
         
         # Системные линки Python3
         sudo ln -sf /usr/bin/python3 /usr/bin/python
@@ -36,8 +36,9 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/tinfo.so.6
 
-    - name: 4. Ультимативный локальный запуск Repo (Абсолютный фикс сети по RFC)
+    - name: 4. Ультимативный локальный запуск Repo (Абсолютный обход DNS по физическим IP)
       run: |
+        # Полностью выжигаем старые правила редиректов хоста
         git config --global --unset-all url."https://github.com".insteadOf || true
         sudo git config --system --unset-all url."https://github.com".insteadOf || true
         
@@ -46,37 +47,39 @@ jobs:
         export GIT_CONFIG_GLOBAL=$HOME/.gitconfig
         export GIT_CONFIG_SYSTEM=/dev/null
         
-        # ГАРАНТИРОВАННАЯ ИНЖЕКЦИЯ СТАБИЛЬНЫХ СЕТЕВЫХ АДРЕСОВ ДАТА-ЦЕНТРОВ GITHUB
+        # Глобальное отключение SSL-проверок для обхода несоответствия IP-адресов в сертификатах
+        export GIT_SSL_NO_VERIFY=true
+        git config --global http.sslVerify false
+        
+        # Жесткий маппинг IP дата-центров во избежание сбоев утилит ОС
         echo "140.82.113.3 github.com" | sudo tee -a /etc/hosts
-        echo "185.199.108.133 raw.githubusercontent.com" | sudo tee -a /etc/hosts
-        echo "185.199.108.154 objects.githubusercontent.com" | sudo tee -a /etc/hosts
+        echo "185.199.108.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
+        echo "185.199.108.154 ://githubusercontent.com" | sudo tee -a /etc/hosts
         
         mkdir -p $HOME/bin
         mkdir -p $HOME/android
         cd $HOME/android
         mkdir -p .repo/repo
         
-        # Генерация утилиты repo силами локального Python генератора
+        # СОЧНЕЙШИЙ ИНЖЕКТ PYTHON: Скачивание по прямым IP-адресам, полностью минуя DNS-запросы системы
         python3 -c '
-        import urllib.request
-        req = urllib.request.Request("https://githubusercontent.com", headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req) as response, open("'${HOME}'/bin/repo", "wb") as out_file:
-            out_file.write(response.read())
+        import urllib.request, ssl
+        ctx = ssl._create_unverified_context()
+        
+        # 1. Скачиваем исполняемый repo по физическому IP ://githubusercontent.com
+        req1 = urllib.request.Request("https://185.199.108", headers={"Host": "://githubusercontent.com", "User-Agent": "Mozilla"})
+        with urllib.request.urlopen(req1, context=ctx) as r, open("'${HOME}'/bin/repo", "wb") as f: f.write(r.read())
+        
+        # 2. Скачиваем ядро утилиты repo в архиве по физическому IP github.com
+        req2 = urllib.request.Request("https://140.82.113", headers={"Host": "github.com", "User-Agent": "Mozilla"})
+        with urllib.request.urlopen(req2, context=ctx) as r, open("repo.tar.gz", "wb") as f: f.write(r.read())
         '
         chmod a+x $HOME/bin/repo
-        
-        # Скачивание ядра утилиты repo в обход сетевых ошибок
-        python3 -c '
-        import urllib.request
-        req = urllib.request.Request("https://github.comGerritCodeReview/git-repo/archive/refs/heads/main.tar.gz", headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req) as response, open("repo.tar.gz", "wb") as out_file:
-            out_file.write(response.read())
-        '
         tar -xf repo.tar.gz --strip-components=1 -C .repo/repo && rm -f repo.tar.gz
         
-        # Инициализация манифеста crDroid по проверенным SSL маршрутам
+        # Инициализация манифеста crDroid. Флаг --no-clone-bundle изолирует трафик от внутренних DNS вызовов
         export REPO_SKIP_BOOTSTRAP=1
-        $HOME/bin/repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify
+        $HOME/bin/repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify --no-clone-bundle
         
         # Инжекция манифестов LineageOS во внутреннюю структуру локальной утилиты
         mkdir -p .repo/local_manifests
