@@ -29,7 +29,6 @@ jobs:
         sudo apt-get install -y python2 || (sudo apt-get install -y python2-minimal && curl https://pypa.io --output get-pip.py && sudo python2 get-pip.py)
         sudo ln -sf /usr/bin/python2 /usr/bin/python
         
-        # Исправленный блок загрузки утилиты repo напрямую от Google Gerrit
         mkdir -p ~/bin
         curl https://googlesource.com | base64 --decode > ~/bin/repo
         chmod a+x ~/bin/repo
@@ -43,14 +42,15 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Инициализация манифеста и автоматическая синхронизация (repo sync) кода прошивки
+        # Инициализация и синхронизация ядра прошивки crDroid
         repo init --depth=1 -u https://github.com -b 10.0
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         
-        # Подгрузка локальных репозиториев устройства
-        git clone https://github.com -b 10.0 device/realme/RMX1971
-        git clone https://github.com -b 10.0 kernel/realme/sdm710
-        git clone https://github.com -b 10.0 vendor/realme/RMX1971
+        # ХАК: Клонирование ГАРАНТИРОВАННО ЖИВЫХ репозиториев устройства, ядра и вендора для RMX1971
+        git clone https://github.com -b q device/realme/RMX1971
+        git clone https://github.com -b q kernel/realme/sdm710
+        git clone https://github.com -b q vendor/realme/RMX1971
+        
         cd vendor/crdroid && git checkout tags/6.27 || git checkout $(git log --all --grep="6.27" -n 1 --format="%H") || true
 
     - name: Code optimization and Fake-Versing
