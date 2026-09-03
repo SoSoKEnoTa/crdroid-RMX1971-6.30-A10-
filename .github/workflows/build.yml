@@ -21,6 +21,7 @@ jobs:
         sudo apt-get install -y gcc-9 g++-9 gcc-9-multilib g++-9-multilib
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
         
+        # Загрузка и принудительная установка оригинальной библиотеки libssl1.1
         wget http://ubuntu.com
         sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb || true
         
@@ -29,6 +30,7 @@ jobs:
         sudo apt-get install -y python2 || (sudo apt-get install -y python2-minimal && curl https://pypa.io --output get-pip.py && sudo python2 get-pip.py)
         sudo ln -sf /usr/bin/python2 /usr/bin/python
         
+        # Исправленная загрузка бинарника утилиты repo напрямую от Google Gerrit
         mkdir -p ~/bin
         curl https://googlesource.com | base64 --decode > ~/bin/repo
         chmod a+x ~/bin/repo
@@ -41,36 +43,34 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Шаг 1: Скачиваем чистую базу LineageOS через repo (он работает изолированно)
+        # Шаг 1: Скачиваем чистую базу LineageOS через repo
         repo init --depth=1 -u https://github.com -b lineage-17.1
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Полностью выжигаем папку .repo, чтобы очистить кэш
+        # Полностью выжигаем папку .repo, чтобы очистить кэш перед curl-загрузками
         rm -rf .repo
         
         # Жестко зачищаем целевые папки перед скачиванием
         rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
         mkdir -p device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
         
-        # УЛЬТИМАТИВНЫЙ ХАК: Качаем исходники через CURL в виде готовых ZIP-архивов!
-        # Это полностью обходит сетевой стек утилиты Git и ломающие фильтры GitHub Actions.
-        
+        # УЛЬТИМАТИВНЫЙ ХАК: Полные рабочие ссылки для CURL без использования утилиты Git
         echo "=== Скачивание дерева устройства ==="
-        curl -L https://github.com -o device.zip
+        curl -f -L https://github.com -o device.zip
         unzip -q device.zip && mv android_device_realme_RMX1971-q/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-q
         
         echo "=== Скачивание исходников ядра ==="
-        curl -L https://github.com -o kernel.zip
+        curl -f -L https://github.com -o kernel.zip
         unzip -q kernel.zip && mv android_kernel_realme_sdm710-q/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-q
         
         echo "=== Скачивание вендора устройства ==="
-        curl -L https://github.com -o vendor_device.zip
+        curl -f -L https://github.com -o vendor_device.zip
         unzip -q vendor_device.zip && mv android_vendor_realme_RMX1971-q/* vendor/realme/RMX1971/ && rm -rf vendor_device.zip android_vendor_realme_RMX1971-q
         
         echo "=== Скачивание исходников кастомизации crDroid ==="
-        curl -L https://github.com -o vendor_crdroid.zip
-        unzip -q vendor_crdroid.zip && mv android_vendor_crdroid-10.0/* vendor/crdroid/ && rm -rf vendor_crdroid.zip android_vendor_crdroid-10.0
+        curl -f -L https://github.com -o vendor_crdroid.zip
+        unzip -q vendor_crdroid.zip && mv vendor_crdroid-10.0/* vendor/crdroid/ && rm -rf vendor_crdroid.zip vendor_crdroid-10.0
 
     - name: Code optimization and Fake-Versing
       run: |
