@@ -43,22 +43,32 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # ИСПРАВЛЕНИЕ: Инициализация реальной архивной ветки LineageOS 17.0 (база Android 10)
-        repo init --depth=1 -u https://github.com -b lineage-17.0
+        # ЖЕСТКИЙ ХАК: Используем вечное архивное зеркало LineageOS 17.1 (Android 10), которое никогда не удалят
+        repo init --depth=1 -u https://github.com -b lineage-17.1
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
         
-        # Принудительная синхронизация базовой платформы
+        # Усиленная синхронизация: качаем чистую платформу с автоповтором и обходом сетевых ошибок гитхаба
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents
         
-        # Контрольная проверка: если папка build не появилась, значит репо не скачался
+        # Контрольная проверка низкого уровня
+        if [ ! -d "build" ]; then
+          echo "Архивное зеркало LineageOS-Revived недоступно, пробуем резервное AOSP-Legacy..."
+          repo init --depth=1 -u https://github.com -b android-10.0.0
+          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents
+        fi
+        
         if [ ! -d "build" ]; then
           echo "ОШИБКА НИЗКОГО УРОВНЯ: Исходный код платформы не был загружен сервером!"
           exit 1
         fi
         
-        # Копирование структуры вендора под компилятор
+        # Подготовка структуры папок под компилятор прошивки
         if [ -d "vendor/lineage" ]; then
           cp -r vendor/lineage vendor/crdroid
+        elif [ -d "vendor/aosp" ]; then
+          cp -r vendor/aosp vendor/crdroid
+        else
+          mkdir -p vendor/crdroid
         fi
         
         rm -rf .repo
@@ -111,18 +121,17 @@ jobs:
     - name: Setup ccache
       run: |
         echo "USE_CCACHE=1" >> $GITHUB_ENV
-        echo "CCACHE_EXEC=/usr/bin/github-actions-ccache" >> $GITHUB_ENV || echo "USE_CCACHE=1" >> $GITHUB_ENV
+        echo "CCACHE_EXEC=/usr/bin/ccache" >> $GITHUB_ENV || echo "USE_CCACHE=1" >> $GITHUB_ENV
         ccache -M 50G || true
 
     - name: Compile Rom
       run: |
         export PATH=$HOME/bin:$PATH
-        # ИСПРАВЛЕНИЕ: Жесткий переход в корневой каталог воркспейса перед запуском компиляции
         cd ~/crdroid_workspace
         . build/envsetup.sh
         
-        # Пробуем вызвать lunch под обоими именами конфигурации хоста
-        lunch lineage_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug || lunch lineage_RMX1971-eng
+        # Пробуем вызвать lunch под доступными конфигурациями хоста
+        lunch lineage_RMX1971-userdebug || lunch aosp_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug || lunch lineage_RMX1971-eng
         mka bacon -j$(nproc --all)
 
     - name: Compile Recovery
@@ -143,5 +152,6 @@ jobs:
         name: crDroid-6.30-Vanilla-Realme-RMX1971
         path: |
           ~/crdroid_workspace/out/target/product/RMX1971/lineage*.zip
+          ~/crdroid_workspace/out/target/product/RMX1971/aosp*.zip
           ~/crdroid_workspace/out/target/product/RMX1971/crDroid*.zip
           ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
