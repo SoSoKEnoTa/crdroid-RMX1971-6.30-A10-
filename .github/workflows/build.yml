@@ -41,20 +41,25 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
 
-        # ИСПРАВЛЕННАЯ ЛОКАЛЬНАЯ ГЕНЕРАЦИЯ REPO БЕЗ СБОЯ URL СТРОКИ 42
+        # ГАРАНТИРОВАННЫЙ ФИКС СТРОКИ URL (Локальное создание утилиты Repo)
         mkdir -p $HOME/bin
-        printf '%s\n' \
-          '#!/usr/bin/env python' \
-          'import os, sys, subprocess' \
-          'def main():' \
-          '    repo_dir = os.path.expanduser("~/.repo/repo")' \
-          '    main_py = os.path.join(repo_dir, "main.py")' \
-          '    if not os.path.exists(main_py):' \
-          '        os.makedirs(os.path.expanduser("~/.repo"), exist_ok=True)' \
-          '        subprocess.run(["git", "clone", "https://googlesource.com", repo_dir, "--depth=1"], check=True)' \
-          '    os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])' \
-          'if __name__ == "__main__":' \
-          '    main()' > $HOME/bin/repo
+        cat << 'EOF' > $HOME/bin/repo
+#!/usr/bin/env python
+import os
+import sys
+import subprocess
+
+def main():
+    repo_dir = os.path.expanduser('~/.repo/repo')
+    main_py = os.path.join(repo_dir, 'main.py')
+    if not os.path.exists(main_py):
+        os.makedirs(os.path.expanduser('~/.repo'), exist_ok=True)
+        subprocess.run(['git', 'clone', 'https://github.com', repo_dir, '--depth=1'], check=True)
+    os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
+
+if __name__ == '__main__':
+    main()
+EOF
         chmod a+x $HOME/bin/repo
         sudo ln -sf $HOME/bin/repo /usr/bin/repo
         
