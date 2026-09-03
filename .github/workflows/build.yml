@@ -43,14 +43,14 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # ЖЕСТКИЙ ХАК: Передаем расшифрованную ссылку напрямую в curl без флага -K
+        # СТРАТЕГИЧЕСКИЙ МАНЕВР: Скачиваем исправленную и гарантированно точную ссылку на движок сборки LineageOS 17.1 (Android 10)
         echo "=== Загрузка сборочного конвейера Android 10 ==="
-        URL_BUILD=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkX2J1aWxkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemhw" | base64 --decode)
+        URL_BUILD=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkX2J1aWxkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemlw" | base64 --decode)
         curl -f -L "$URL_BUILD" -o android_build.zip
         unzip -q android_build.zip && mkdir -p build && mv android_build-lineage-17.1/* build/ && rm -rf android_build.zip android_build-lineage-17.1
         
         echo "=== Развертывание корневых утилит ==="
-        URL_ROOT=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemhw" | base64 --decode)
+        URL_ROOT=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemlw" | base64 --decode)
         curl -f -L "$URL_ROOT" -o root_build.zip
         unzip -q root_build.zip && mv android-lineage-17.1/* ./ 2>/dev/null || true && rm -rf root_build.zip android-lineage-17.1
         
