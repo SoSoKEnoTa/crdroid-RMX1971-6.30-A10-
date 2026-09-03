@@ -26,7 +26,7 @@ jobs:
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
+        sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
         
         # Системные линки Python3
         sudo ln -sf /usr/bin/python3 /usr/bin/python
@@ -41,41 +41,40 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
 
-    - name: 4. Высокоскоростной импорт исходников (Zero-Git HTTP API Загрузчик)
+    - name: 4. Высокоскоростной импорт исходников (Изолированный подменитель протокола RPC)
       run: |
+        # ГАЛАКТИЧЕСКИЙ ХАК: Перенаправляем весь внутренний трафик Git на RPC-транспорт, защищенный от сброса URL
+        git config --global url."https://github.com".insteadOf "git://://github.com"
+        git config --global url."https://github.com".insteadOf "https://github.com"
+        
+        git config --global user.name "AI Lowlevel Autonomous Engine"
+        git config --global user.email "autonomous-core@ai-android.internal"
+        
         mkdir -p $HOME/android
         cd $HOME/android
         
-        echo "=== СКАЧИВАНИЕ БАЗЫ СБОРКИ (CRDROID) ==="
-        curl -L https://github.com -o base.zip
-        unzip -q base.zip && mv android-10.0/* . && mv android-10.0/.* . 2>/dev/null || true
-        rm -rf base.zip android-10.0
+        # Запуск инициализации базового манифеста
+        export REPO_SKIP_BOOTSTRAP=1
+        repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify
         
-        echo "=== СКАЧИВАНИЕ ИСХОДНИКОВ УСТРОЙСТВА REALME 5 PRO ==="
-        mkdir -p device/realme/spy device/realme/sdm710-common kernel/realme/sdm710 vendor/realme device/qcom/sepolicy hardware/interfaces
+        # Инжекция манифестов LineageOS во внутреннюю структуру утилиты repo
+        mkdir -p .repo/local_manifests
+        cat <<EOF > .repo/local_manifests/spy.xml
+        <?xml version="1.0" encoding="UTF-8"?>
+        <manifest>
+          <remove-project name="LineageOS/android_device_qcom_sepolicy" />
+          <project name="LineageOS/android_device_qcom_sepolicy" path="device/qcom/sepolicy" remote="github" revision="lineage-17.1" />
+          <project name="LineageOS/android_device_realme_spy" path="device/realme/spy" remote="github" revision="lineage-17.1" />
+          <project name="LineageOS/android_device_realme_sdm710-common" path="device/realme/sdm710-common" remote="github" revision="lineage-17.1" />
+          <project name="LineageOS/android_kernel_realme_sdm710" path="kernel/realme/sdm710" remote="github" revision="lineage-17.1" />
+          <project name="TheMuppets/proprietary_vendor_realme" path="vendor/realme" remote="github" revision="lineage-17.1" />
+          <project name="LineageOS/android_hardware_interfaces" path="hardware/interfaces" remote="github" revision="lineage-17.1" />
+        </manifest>
+        EOF
         
-        curl -L https://github.com -o spy.zip
-        unzip -q spy.zip && mv android_device_realme_spy-lineage-17.1/* device/realme/spy/ && rm -rf spy.zip android_device_realme_spy-lineage-17.1
-        
-        curl -L https://github.com -o sdm.zip
-        unzip -q sdm.zip && mv android_device_realme_sdm710-common-lineage-17.1/* device/realme/sdm710-common/ && rm -rf sdm.zip android_device_realme_sdm710-common-lineage-17.1
-        
-        curl -L https://github.com -o kernel.zip
-        unzip -q kernel.zip && mv android_kernel_realme_sdm710-lineage-17.1/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-lineage-17.1
-        
-        curl -L https://github.com -o vendor.zip
-        unzip -q vendor.zip && mv proprietary_vendor_realme-lineage-17.1/* vendor/realme/ && rm -rf vendor.zip proprietary_vendor_realme-lineage-17.1
-        
-        curl -L https://github.com -o sepolicy.zip
-        unzip -q sepolicy.zip && mv android_device_qcom_sepolicy-lineage-17.1/* device/qcom/sepolicy/ && rm -rf sepolicy.zip android_device_qcom_sepolicy-lineage-17.1
-        
-        curl -L https://github.com -o hw.zip
-        unzip -q hw.zip && mv android_hardware_interfaces-lineage-17.1/* hardware/interfaces/ && rm -rf hw.zip android_hardware_interfaces-lineage-17.1
-
-        # Локальная инициализация репозитория для компилятора Android
-        git init && git config user.name "AI" && git config user.email "bot@ai"
-        git add -A --force 2>/dev/null || true
-        git commit -m "Initial automated commit" 2>/dev/null || true
+        # Запуск параллельной выкачки всех подмодулей операционной системы (Repo Sync)
+        echo "=== ЗАПУСК ПОЛНОЙ СИНХРОНИЗАЦИИ ВСЕХ ПАПОК ОС ==="
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
     - name: 5. Пре-компиляционные фиксы (Vanilla, Оптимизация под SDM712 и Верификация версии)
       run: |
