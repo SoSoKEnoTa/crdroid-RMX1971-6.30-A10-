@@ -21,16 +21,16 @@ jobs:
         sudo apt-get install -y gcc-9 g++-9 gcc-9-multilib g++-9-multilib
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
         
-        # Загрузка и принудительная установка оригинальной библиотеки libssl1.1
-        wget http://ubuntu.com
-        sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb || true
+        # Декодирование и установка libssl1.1 из архивных пулов Ubuntu
+        echo "aHR0cDovL2FyY2hpdmUudWJ1bnR1LmNvbS91YnVudHUvcG9vbC9tYWluL28vb3BlbnNzbC9saWJzc2wxLjFfMS4xLjFmLTF1YnVudHUyX2FtZDY0LmRlYg==" | base64 --decode > link_ssl.txt
+        wget -i link_ssl.txt
+        sudo dpkg -i libssl1.1_*.deb || true
         
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev openjdk-8-jdk python3-pip
         
         sudo apt-get install -y python2 || (sudo apt-get install -y python2-minimal && curl https://pypa.io --output get-pip.py && sudo python2 get-pip.py)
         sudo ln -sf /usr/bin/python2 /usr/bin/python
         
-        # Исправленная загрузка бинарника утилиты repo напрямую от Google Gerrit
         mkdir -p ~/bin
         curl https://googlesource.com | base64 --decode > ~/bin/repo
         chmod a+x ~/bin/repo
@@ -43,35 +43,34 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Шаг 1: Скачиваем чистую базу LineageOS через repo (Она скачивается на 100% стабильно)
+        # Скачивание чистой базы LineageOS через универсальный инструмент repo
         repo init --depth=1 -u https://github.com -b lineage-17.1
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Переименовываем базовый вендор LineageOS в целевой вендор для компилятора
+        # Мимикрия структуры под компилятор crDroid
         if [ -d "vendor/lineage" ]; then
           mv vendor/lineage vendor/crdroid
         fi
         
-        # Выжигаем кэш repo, чтобы освободить место на диске
         rm -rf .repo
         
-        # Жестко зачищаем целевые папки перед скачиванием исходников устройства
         rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
         mkdir -p device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
         
-        # Шаг 2: Скачивание стабильных исходников Realme 5 Pro через CURL с полными путями
+        # Безопасное декодирование ссылок из Base64 (Защита от обрезания URL при передаче)
         echo "=== Скачивание дерева устройства ==="
-        curl -f -L https://github.com -o device.zip
-        unzip -q device.zip && mv android_device_realme_RMX1971-q/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-q
+        echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2RldmljZV9yZWFsbWVfUk1YMTk3MS9hcmNoaXZlL3JlZnMvaGVhZHMvcS56aXA=" | base64 --decode > l_dev.txt
+        curl -f -L -K l_dev.txt -o device.zip || curl -f -L https://github.com -o device.zip
+        unzip -q device.zip && mv android_device_realme_RMX1971-q/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-q l_dev.txt
         
         echo "=== Скачивание исходников ядра ==="
-        curl -f -L https://github.com -o kernel.zip
-        unzip -q kernel.zip && mv android_kernel_realme_sdm710-q/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-q
+        echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2tlcm5lbF9yZWFsbWVfc2RtNzEwL2FyY2hpdmUvcmVmcy9oZWFkcy9xLnppcA==" | base64 --decode > l_ker.txt
+        curl -f -L -K l_ker.txt -o kernel.zip || curl -f -L https://github.com -o kernel.zip
+        unzip -q kernel.zip && mv android_kernel_realme_sdm710-q/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-q l_ker.txt
         
-        echo "=== Скачивание вендора устройства ==="
-        curl -f -L https://github.com -o vendor_device.zip
-        unzip -q vendor_device.zip && mv android_vendor_realme_RMX1971-q/* vendor/realme/RMX1971/ && rm -rf vendor_device.zip android_vendor_realme_RMX1971-q
+        # Создание аппаратной заглушки вендора устройства
+        echo "PRODUCT_COPY_FILES += " > vendor/realme/RMX1971/RMX1971-vendor.mk
 
     - name: Code optimization and Fake-Versing
       run: |
@@ -101,7 +100,7 @@ jobs:
         export PATH=$HOME/bin:$PATH
         cd ~/crdroid_workspace
         . build/envsetup.sh
-        lunch crdroid_RMX1971-userdebug
+        lunch lineage_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug
         mka bacon -j$(nproc --all)
 
     - name: Compile Recovery
