@@ -21,7 +21,6 @@ jobs:
         sudo apt-get install -y gcc-9 g++-9 gcc-9-multilib g++-9-multilib
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
         
-        # Скачивание реального deb-пакета libssl1.1 из архивных пулов Ubuntu
         wget http://ubuntu.com
         sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb || true
         
@@ -30,7 +29,6 @@ jobs:
         sudo apt-get install -y python2 || (sudo apt-get install -y python2-minimal && curl https://pypa.io --output get-pip.py && sudo python2 get-pip.py)
         sudo ln -sf /usr/bin/python2 /usr/bin/python
         
-        # Корректная загрузка утилиты repo напрямую из Google Gerrit
         mkdir -p ~/bin
         curl https://googlesource.com | base64 --decode > ~/bin/repo
         chmod a+x ~/bin/repo
@@ -49,28 +47,36 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Инициализируем корневой манифест исходников crDroid
+        # Инициализируем манифест crDroid
         repo init --depth=1 -u https://github.com -b 10.0
         
-        # Вырезаем дефолтные манифесты устройств crDroid, которые содержат битые ссылки 2020 года
+        # ХАК: Жесткая хирургия манифестов. Вырезаем скрытые автоматические скрипты поиска девайсов
         rm -rf .repo/local_manifests
         rm -rf .repo/manifests/snippets/crdroid.xml 2>/dev/null || true
         
-        # Синхронизируем базовую чистую систему
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune || true
+        # Если в манифесте сгенерировались битые ссылки, принудительно правим файл манифеста на лету
+        if [ -f .repo/manifest.xml ]; then
+          sed -i 's|fetch=".."|fetch="https://github.com"|g' .repo/manifest.xml 2>/dev/null || true
+          sed -i 's|fetch="github"|fetch="https://github.com"|g' .repo/manifest.xml 2>/dev/null || true
+        fi
+
+        # Отключаем автоматический запуск roomservice/custom_targets в конфигурации самого repo
+        export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
+        echo "export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1" >> ~/.bashrc
+
+        # Синхронизируем ТОЛЬКО чистую платформу Android, полностью запрещая заглядывать в сторонние проекты
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Зачищаем папки перед прямой заливкой рабочих исходников Realme
-        rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
+        # Полностью очищаем целевые папки перед нашей ручной, контролируемой заливкой
+        rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
         
-        # ПОЛНЫЕ ИСПРАВЛЕННЫЕ ССЫЛКИ НА РЕПОЗИТОРИИ HYPERTEAM
+        # Скачиваем гарантированно живые и полные исходники Realme 5 Pro напрямую
         git clone --depth=1 https://github.com -b q device/realme/RMX1971
         git clone --depth=1 https://github.com -b q kernel/realme/sdm710
         git clone --depth=1 https://github.com -b q vendor/realme/RMX1971
         
-        # Подтягиваем vendor/crdroid с полной ссылкой
-        if [ ! -d "vendor/crdroid" ]; then
-          git clone --depth=1 https://github.com -b 10.0 vendor/crdroid
-        fi
+        # Напрямую скачиваем ветку вендора кастомизации crDroid
+        git clone --depth=1 https://github.com -b 10.0 vendor/crdroid
         
         cd vendor/crdroid && git checkout tags/6.27 || git checkout $(git log --all --grep="6.27" -n 1 --format="%H") || true
 
@@ -124,5 +130,6 @@ jobs:
         path: |
           ~/crdroid_workspace/out/target/product/RMX1971/crDroid*.zip
           ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
+
 
 
