@@ -36,7 +36,7 @@ jobs:
         git config --global user.name "AI Lowlevel Autonomous Engine"
         git config --global user.email "autonomous-core@ai-android.internal"
 
-    - name: 4. Импорт ПОЛНОЙ кодовой базы Android 10.0.0_r75 и crDroid (Шестнадцатеричный обход)
+    - name: 4.  ПОЛНОЙ кодовой базы Android 10.0.0_r75 и crDroid (Шестнадцатеричный обход)
       run: |
         git config --global --unset-all url."https://github.com".insteadOf || true
         sudo git config --system --unset-all url."https://github.com".insteadOf || true
@@ -115,14 +115,14 @@ jobs:
         
         mkdir -p build
         cat << 'EOF' > build/envsetup.sh
-#!/bin/bash
-function lunch() {
-    export TARGET_PRODUCT=crdroid_spy
-    export TARGET_BUILD_VARIANT=userdebug
-    export OUT_DIR=out
-    echo "AI Autonomous Core: Environment variables enforced for crdroid_spy-userdebug"
-}
-EOF
+        #!/bin/bash
+        function lunch() {
+            export TARGET_PRODUCT=crdroid_spy
+            export TARGET_BUILD_VARIANT=userdebug
+            export OUT_DIR=out
+            echo "AI Autonomous Core: Environment variables enforced for crdroid_spy-userdebug"
+        }
+        EOF
         chmod a+x build/envsetup.sh
         touch build.log init_env.log
         
@@ -133,12 +133,20 @@ EOF
         
         echo "🚀 ЗАПУСК АВТОНОМНОГО ИИ-ПАТЧЕРА СБОРКИ..."
         
+        # Стерильный синтаксический блок выполнения сборки AOSP
         for attempt in {1..10}; do
           echo "🧱 Проход компиляции №$attempt..."
-          mka bacon -j$(nproc --all) > build.log 2>&1 && BUILD_SUCCESS=true && break || BUILD_SUCCESS=false
           
-          if [ "$BUILD_SUCCESS" = false ] && [ -f "Makefile" ]; then
-             make bacon -j$(nproc --all) > build.log 2>&1 && BUILD_SUCCESS=true && break || BUILD_SUCCESS=false
+          if mka bacon -j$(nproc --all) > build.log 2>&1; then
+            echo "Сборка успешно завершена!"
+            break
+          fi
+          
+          if [ -f "Makefile" ]; then
+            if make bacon -j$(nproc --all) > build.log 2>&1; then
+              echo "Сборка через локальный Makefile успешно завершена!"
+              break
+            fi
           fi
           
           echo "⚠️ Обнаружена ошибка. ИИ анализирует build.log и генерирует низкоуровневый патч..."
@@ -187,4 +195,3 @@ EOF
         mkdir -p kernel_zip/META-INF/com/google/android
         cp boot.img kernel_zip/boot.img
         echo "#!/sbin/sh" > kernel_zip/META-INF/com/google/android/update-binary
-        echo "ui_print \"Installing Custom Optimized Kernel (Kryo 360)...\"" >> kernel_zip/META-INF/com/google/android/update-binary
