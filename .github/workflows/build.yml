@@ -20,18 +20,19 @@ jobs:
         sudo apt-get clean
         df -h
 
-    - name: 3. Развертывание низкоуровневого окружения и Фикс Python2/Ncurses
+    - name: 3. Развертывание низкоуровневого окружения и Предустановка утилиты Repo
       run: |
         sudo chmod 777 /etc/resolv.conf
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
+        # Устанавливаем официальный системный пакет repo из репозиториев Ubuntu (Исключает баг строки 48)
+        sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
         
         # Системные линки Python3
         sudo ln -sf /usr/bin/python3 /usr/bin/python
         
-        # Портативный бэкпорт Python 2.7
+        # Портативный бэкпорт Python 2.7 для старых скриптов Android 10
         curl -L https://github.com > $HOME/python2
         chmod a+x $HOME/python2
         sudo ln -sf $HOME/python2 /usr/bin/python2
@@ -44,31 +45,14 @@ jobs:
         git config --global user.name "AI Lowlevel Autonomous Engine"
         git config --global user.email "autonomous-core@ai-android.internal"
 
-    - name: 4. Гарантированная генерация утилиты Repo (Обход ошибки строки 48)
-      shell: bash
-      run: |
-        mkdir -p $HOME/bin
-        echo '#!/usr/bin/env python3' > $HOME/bin/repo
-        echo 'import os, sys, subprocess' >> $HOME/bin/repo
-        echo 'def main():' >> $HOME/bin/repo
-        echo '    hd = os.path.expanduser("~")' >> $HOME/bin/repo
-        echo '    rd = os.path.join(hd, ".repo", "repo")' >> $HOME/bin/repo
-        echo '    mp = os.path.join(rd, "main.py")' >> $HOME/bin/repo
-        echo '    if not os.path.exists(mp):' >> $HOME/bin/repo
-        echo '        os.makedirs(os.path.join(hd, ".repo"), exist_ok=True)' >> $HOME/bin/repo
-        echo '        subprocess.run(["git", "clone", "https://github.com", rd, "--depth=1"], check=True)' >> $HOME/bin/repo
-        echo '    os.execv(sys.executable, [sys.executable, mp] + sys.argv[1:])' >> $HOME/bin/repo
-        echo 'if __name__ == "__main__": main()' >> $HOME/bin/repo
-        chmod a+x $HOME/bin/repo
-        sudo ln -sf $HOME/bin/repo /usr/bin/repo
-
-    - name: 5. Инициализация исходников crDroid (Android 10)
+    - name: 4. Инициализация исходников crDroid (Android 10)
       run: |
         mkdir -p $HOME/android
         cd $HOME/android
+        # Используем стабильную предустановленную системную команду repo
         repo init -u https://github.com -b 10.0 --git-lfs --depth=1
 
-    - name: 6. Инжекция вечных манифестов LineageOS
+    - name: 5. Инжекция вечных манифестов LineageOS
       run: |
         mkdir -p $HOME/android/.repo/local_manifests
         cat <<EOF > $HOME/android/.repo/local_manifests/spy.xml
@@ -84,12 +68,12 @@ jobs:
         </manifest>
         EOF
 
-    - name: 7. Синхронизация кода (Умный перезапуск при сбоях сети)
+    - name: 6. Синхронизация кода (Умный перезапуск при сбоях сети)
       run: |
         cd $HOME/android
         for i in {1..5}; do repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags && break || sleep 20; done
 
-    - name: 8. Пре-компиляционные фиксы (Vanilla, Оптимизация под SDM712 и Верификация версии)
+    - name: 7. Пре-компиляционные фиксы (Vanilla, Оптимизация под SDM712 и Верификация версии)
       run: |
         cd $HOME/android/device/realme/spy
         echo "TARGET_GAPPS_ARCH := arm64" >> BoardConfig.mk
@@ -100,7 +84,7 @@ jobs:
         find . -type f -name "*.mk" -exec sed -i 's/CRDROID_VERSION := 6.*/CRDROID_VERSION := 6.30/g' {} +
         echo "PRODUCT_PROPERTY_OVERRIDES += ro.crdroid.version=6.30" >> config/common.mk
 
-    - name: 9. ИИ-Петля Абсолютного Самоисцеления и Компиляции (Zero-Intervention Loop)
+    - name: 8. ИИ-Петля Абсолютного Самоисцеления и Компиляции (Zero-Intervention Loop)
       run: |
         cd $HOME/android
         export CCACHE_EXEC=/usr/bin/ccache
@@ -113,7 +97,7 @@ jobs:
         source build/envsetup.sh > init_env.log 2>&1
         lunch crdroid_spy-userdebug >> init_env.log 2>&1
         
-        # Исправляем бинарники Google AOSP под ncurses6
+        # Исправляем бинарники Google AOSP под системный ncurses6
         find prebuilts/ -type f -executable -exec sh -c 'patchelf --replace-needed libncurses.so.5 libncurses.so.6 "$1" 2>/dev/null' _ {} \; || true
         
         echo "🚀 ЗАПУСК АВТОНОМНОГО ИИ-ПАТЧЕРА СБОРКИ..."
@@ -136,13 +120,18 @@ jobs:
             done
           fi
           
+          if grep -q "undefined reference to" build.log; then
+             echo "🤖 Исправление конфликта inline-линковки функций ядра..."
+             find kernel/ -name "*.c" -o -name "*.h" | xargs sed -i 's/inline /static inline __attribute__((always_inline)) /g' 2>/dev/null || true
+          fi
+          
           find system/tools/ -name "*.cc" -exec sed -i 's/int yy_flex_alloc/void* yy_flex_alloc/g' {} + 2>/dev/null || true
           
           if grep -q "error: read-only variable" build.log; then
              find kernel/ -name "*.c" -exec sed -i 's/volatile string/string/g' {} + 2>/dev/null || true
           fi
           
-          echo "🔄 Патчи применены автоматически. Очистка локального затыка и перезапуск компиляции..."
+          echo "🔄 Патчи применены автоматически. Перезапуск компиляции..."
         done
         
         if [ "$BUILD_SUCCESS" = false ]; then
@@ -150,7 +139,7 @@ jobs:
           exit 1
         fi
 
-    - name: 10. Выгрузка готовых файлов сборки (.zip прошивка и образы .img)
+    - name: 9. Выгрузка готовых файлов сборки (.zip прошивка и образы .img)
       if: always()
       uses: actions/upload-artifact@v4
       with:
@@ -160,7 +149,7 @@ jobs:
           /home/runner/android/out/target/product/spy/recovery.img
           /home/runner/android/out/target/product/spy/boot.img
 
-    - name: 11. Выгрузка полных системных логов компиляции для истории ИИ
+    - name: 10. Выгрузка полных системных логов компиляции для истории ИИ
       if: always()
       uses: actions/upload-artifact@v4
       with:
