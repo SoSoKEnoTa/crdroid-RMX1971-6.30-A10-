@@ -7,7 +7,6 @@ jobs:
   compile_firmware_rmx1971:
     runs-on: ubuntu-22.04
     steps:
-    # МЫ ПОЛНОСТЬЮ УДАЛИЛИ ПЛАГИН CHECKOUT, ЧТОБЫ ГИТХАБ НЕ ИНЖЕКТИРОВАЛ СВОИ КРИВЫЕ ТОКЕНЫ
     - name: Clean disk space
       run: |
         sudo rm -rf /usr/share/dotnet
@@ -39,39 +38,39 @@ jobs:
       run: |
         export PATH=$HOME/bin:$PATH
         
-        # ТОТАЛЬНАЯ ЖЕСТКАЯ ЗАЧИСТКА ВСЕХ КОНФИГОВ И ЛОКАЛЬНЫХ ПАПОК
-        rm -rf .git .gitattributes .github
-        rm -f ~/.gitconfig
-        
-        git config --global user.name "AI-LowLevel-Developer"
-        git config --global user.email "developer@ai-core.internal"
-        
-        # Полностью глушим любые локальные extraheaders на уровне текущей сессии bash
-        git config --global --unset-all http.https://github.com/.extraheader || true
-        
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Инициализируем и скачиваем чистую базу LineageOS 17.1 (Android 10)
+        # Шаг 1: Скачиваем чистую базу LineageOS через repo (он работает изолированно)
         repo init --depth=1 -u https://github.com -b lineage-17.1
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Выжигаем кэш repo, чтобы он не мешал чистому git clone
+        # Полностью выжигаем папку .repo, чтобы очистить кэш
         rm -rf .repo
         
-        # Полностью очищаем целевые директории
+        # Жестко зачищаем целевые папки перед скачиванием
         rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
+        mkdir -p device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
         
-        # КЛОНИРУЕМ НАПРЯМУЮ В АБСОЛЮТНО ЧИСТОЙ СРЕДЕ, ГДЕ У ГИТА НЕТ ЛОКАЛЬНЫХ ПРАВИЛ
-        git clone --depth=1 https://github.com -b q device/realme/RMX1971
-        git clone --depth=1 https://github.com -b q kernel/realme/sdm710
-        git clone --depth=1 https://github.com -b q vendor/realme/RMX1971
+        # УЛЬТИМАТИВНЫЙ ХАК: Качаем исходники через CURL в виде готовых ZIP-архивов!
+        # Это полностью обходит сетевой стек утилиты Git и ломающие фильтры GitHub Actions.
         
-        # Накатываем вендор кастомизации crDroid
-        git clone --depth=1 https://github.com -b 10.0 vendor/crdroid
+        echo "=== Скачивание дерева устройства ==="
+        curl -L https://github.com -o device.zip
+        unzip -q device.zip && mv android_device_realme_RMX1971-q/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-q
         
-        cd vendor/crdroid && git checkout tags/6.27 || git checkout $(git log --all --grep="6.27" -n 1 --format="%H") || true
+        echo "=== Скачивание исходников ядра ==="
+        curl -L https://github.com -o kernel.zip
+        unzip -q kernel.zip && mv android_kernel_realme_sdm710-q/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-q
+        
+        echo "=== Скачивание вендора устройства ==="
+        curl -L https://github.com -o vendor_device.zip
+        unzip -q vendor_device.zip && mv android_vendor_realme_RMX1971-q/* vendor/realme/RMX1971/ && rm -rf vendor_device.zip android_vendor_realme_RMX1971-q
+        
+        echo "=== Скачивание исходников кастомизации crDroid ==="
+        curl -L https://github.com -o vendor_crdroid.zip
+        unzip -q vendor_crdroid.zip && mv android_vendor_crdroid-10.0/* vendor/crdroid/ && rm -rf vendor_crdroid.zip android_vendor_crdroid-10.0
 
     - name: Code optimization and Fake-Versing
       run: |
