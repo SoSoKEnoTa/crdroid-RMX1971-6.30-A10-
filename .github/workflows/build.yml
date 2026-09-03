@@ -28,7 +28,6 @@ jobs:
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        # Добавлена утилита aria2 для многопоточного скачивания в обход таймаутов
         sudo apt-get install -y aria2 bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses5 libncurses5-dev libtinfo5 python2 patchelf
         
         sudo ln -sf /usr/bin/python3 /usr/bin/python
@@ -190,3 +189,5 @@ EOF
         touch recovery_zip/META-INF/com/google/android/updater-script
         cd recovery_zip && zip -r3 ../crDroid-6.30-Recovery-RMX1971.zip . * && cd ..
         rm -rf recovery_zip
+        
+        echo "=== СБОРКА И УПАКОВКА CUSTOM KERNEL ZIP ==="
