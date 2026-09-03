@@ -1,4 +1,4 @@
-name: 'Ultra-Performance crDroid 6.30 Vanilla for Realme 5 Pro (Ubuntu 22.04)'
+name: Build-crDroid-Realme-RMX1971
 
 on:
   workflow_dispatch:
@@ -7,91 +7,66 @@ jobs:
   compile_firmware_rmx1971:
     runs-on: ubuntu-22.04
     steps:
-    - name: 'Профессиональная очистка дискового пространства раннера'
+    - name: Clean disk space
       run: |
-        echo "=== Свободное место ДО очистки ==="
-        df -h
-        # Удаляем предустановленный тяжелый софт GitHub, который нам не нужен
         sudo rm -rf /usr/share/dotnet
         sudo rm -rf /usr/local/lib/android
         sudo rm -rf /opt/ghc
         sudo rm -rf /opt/hostedtoolcache/CodeQL
-        # Очищаем кэш пакетов
         sudo apt-get clean
-        echo "=== Свободное место ПОСЛЕ очистки ==="
-        df -h
 
-    - name: 'Настройка окружения сборщика и низкоуровневых утилит'
+    - name: Install build tools
       run: |
         sudo apt-get update
-        # Установка компиляторов GCC 9 для обратной совместимости с Android 10
         sudo apt-get install -y gcc-9 g++-9 gcc-9-multilib g++-9-multilib
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
-        
-        # Скачивание и установка libssl1.1, обязательной для старых платформ Android
         wget http://ubuntu.com || wget http://ubuntu.com
         sudo dpkg -i libssl1.1_*.deb || true
-        
-        # Установка базового набора инструментов
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.1-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev openjdk-8-jdk python3-pip
-        
-        # Развертывание Python 2 (требуется для repo и скриптов Android 10)
         sudo apt-get install -y python2 || (sudo apt-get install -y python2-minimal && curl https://pypa.io --output get-pip.py && sudo python2 get-pip.py)
         sudo ln -sf /usr/bin/python2 /usr/bin/python
-        
         mkdir -p ~/bin
         curl https://googleapis.com > ~/bin/repo
         chmod a+x ~/bin/repo
         echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
 
-    - name: 'Инициализация репозиториев crDroid 6.27 и манифестов RMX1971'
+    - name: Init repo source
       run: |
         export PATH=$HOME/bin:$PATH
         git config --global user.name "AI-LowLevel-Developer"
         git config --global user.email "developer@ai-core.internal"
-        
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
-        
         repo init --depth=1 -u https://github.com -b 10.0
-        
         git clone https://github.com -b 10.0 device/realme/RMX1971
         git clone https://github.com -b 10.0 kernel/realme/sdm710
         git clone https://github.com -b 10.0 vendor/realme/RMX1971
-        
         cd vendor/crdroid && git checkout tags/6.27 || git checkout $(git log --all --grep="6.27" -n 1 --format="%H") || true
-        cd ~/crdroid_workspace
 
-    - name: 'Низкоуровневый тюнинг Qualcomm Snapdragon, ребрендинг в 6.30 и Ultra-Vanilla'
+    - name: Code optimization and Fake-Versing
       run: |
         cd ~/crdroid_workspace
-        
         if [ -f vendor/crdroid/config/common.mk ]; then
           sed -i 's/CRDROID_VERSION := 6.27/CRDROID_VERSION := 6.30/g' vendor/crdroid/config/common.mk
         fi
         if [ -f vendor/crdroid/config/version.mk ]; then
           sed -i 's/6.27/6.30/g' vendor/crdroid/config/version.mk
         fi
-        
-        sed -i '/Calendar/d' build/make/target/product/handheld_product.mk
-        sed -i '/Email/d' build/make/target/product/handheld_product.mk
-        sed -i '/Gallery2/d' build/make/target/product/handheld_product.mk
-        sed -i '/Music/d' build/make/target/product/handheld_product.mk
-        
+        sed -i '/Calendar/d; /Email/d; /Gallery2/d; /Music/d' build/make/target/product/handheld_product.mk
         echo "TARGET_CPU_ABI := arm64-v8a" >> device/realme/RMX1971/BoardConfig.mk
         echo "TARGET_USES_O3 := true" >> device/realme/RMX1971/BoardConfig.mk
         echo "MALLOC_SVELTE := true" >> device/realme/RMX1971/BoardConfig.mk
         echo "DEBUG_CFLAGS :=" >> device/realme/RMX1971/BoardConfig.mk
         echo "TARGET_USES_VULKAN := true" >> device/realme/RMX1971/BoardConfig.mk
 
-    - name: 'Настройка ccache (Ускорение компиляции)'
+    - name: Setup ccache
       run: |
         echo "USE_CCACHE=1" >> $GITHUB_ENV
         echo "CCACHE_EXEC=/usr/bin/ccache" >> $GITHUB_ENV
         ccache -M 50G
         ccache -z
 
-    - name: 'Запуск компиляции прошивки crDroid 6.30 для Realme (mka bacon)'
+    - name: Compile Rom
       run: |
         export PATH=$HOME/bin:$PATH
         cd ~/crdroid_workspace
@@ -99,30 +74,22 @@ jobs:
         lunch crdroid_RMX1971-userdebug
         mka bacon -j$(nproc --all)
 
-    - name: 'Компиляция кастомного OrangeFox Recovery для RMX1971'
+    - name: Compile Recovery
       run: |
         export PATH=$HOME/bin:$PATH
         cd ~/crdroid_workspace
         . build/envsetup.sh
         mka recoveryimage -j$(nproc --all)
-        
         cd out/target/product/RMX1971/
         mkdir -p OF_Build/sdcard
         cp recovery.img OF_Build/
         echo "OrangeFox Recovery for Realme 5 Pro - Optimized for crDroid 6.30 Vanilla" > OF_Build/sdcard/fox.version
         cd OF_Build && zip -r ../OrangeFox-RMX1971-Ultra-Custom.zip *
 
-    - name: 'Экспорт готовой прошивки crDroid 6.30 для Realme'
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: crDroid-6.30-Vanilla-Ultra-Optimized-RMX1971
-        path: ~/crdroid_workspace/out/target/product/RMX1971/crDroid*.zip
-
-    - name: 'Экспорт кастомного OrangeFox Recovery для Realme'
-      uses: actions/upload-artifact@v4
-      with:
-        name: OrangeFox-Recovery-Ultra-RMX1971
-        path: ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
-
-
-        path: ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
+        name: crDroid-6.30-Vanilla-Realme-RMX1971
+        path: |
+          ~/crdroid_workspace/out/target/product/RMX1971/crDroid*.zip
+          ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
