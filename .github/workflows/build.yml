@@ -40,6 +40,11 @@ jobs:
         git config --global user.name "AI-LowLevel-Developer"
         git config --global user.email "developer@ai-core.internal"
         
+        # СБРОС ВСЕХ СЛОМАННЫХ ГЛОБАЛЬНЫХ ПРАВИЛ URL В GIT РАННЕРЕ
+        git config --global --unset-all url.https://github.com || true
+        git config --global --unset-all url.https://github.com || true
+        git config --global --unset-all url.git@github.com:.insteadof || true
+        
         git config --global http.postBuffer 524288000
         git config --global http.lowSpeedLimit 0
         git config --global http.lowSpeedTime 999999
@@ -47,36 +52,26 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Инициализируем манифест crDroid
+        # Инициализируем чистый репо без автоматического подтягивания зависимостей
         repo init --depth=1 -u https://github.com -b 10.0
         
-        # ХАК: Жесткая хирургия манифестов. Вырезаем скрытые автоматические скрипты поиска девайсов
         rm -rf .repo/local_manifests
         rm -rf .repo/manifests/snippets/crdroid.xml 2>/dev/null || true
         
-        # Если в манифесте сгенерировались битые ссылки, принудительно правим файл манифеста на лету
-        if [ -f .repo/manifest.xml ]; then
-          sed -i 's|fetch=".."|fetch="https://github.com"|g' .repo/manifest.xml 2>/dev/null || true
-          sed -i 's|fetch="github"|fetch="https://github.com"|g' .repo/manifest.xml 2>/dev/null || true
-        fi
-
-        # Отключаем автоматический запуск roomservice/custom_targets в конфигурации самого repo
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
-        echo "export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1" >> ~/.bashrc
-
-        # Синхронизируем ТОЛЬКО чистую платформу Android, полностью запрещая заглядывать в сторонние проекты
+        
+        # Синхронизируем базу
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Полностью очищаем целевые папки перед нашей ручной, контролируемой заливкой
         rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
         
-        # Скачиваем гарантированно живые и полные исходники Realme 5 Pro напрямую
-        git clone --depth=1 https://github.com -b q device/realme/RMX1971
-        git clone --depth=1 https://github.com -b q kernel/realme/sdm710
-        git clone --depth=1 https://github.com -b q vendor/realme/RMX1971
+        # ХАК: Используем прямую токенизированную ссылку, обходящую любые внутренние баги проксирования GitHub Actions
+        git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com -b q device/realme/RMX1971
+        git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com -b q kernel/realme/sdm710
+        git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com -b q vendor/realme/RMX1971
         
-        # Напрямую скачиваем ветку вендора кастомизации crDroid
-        git clone --depth=1 https://github.com -b 10.0 vendor/crdroid
+        # Выкачиваем вендор кастомизации crDroid тоже через токен безопасности
+        git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com -b 10.0 vendor/crdroid
         
         cd vendor/crdroid && git checkout tags/6.27 || git checkout $(git log --all --grep="6.27" -n 1 --format="%H") || true
 
@@ -130,6 +125,7 @@ jobs:
         path: |
           ~/crdroid_workspace/out/target/product/RMX1971/crDroid*.zip
           ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
+
 
 
 
