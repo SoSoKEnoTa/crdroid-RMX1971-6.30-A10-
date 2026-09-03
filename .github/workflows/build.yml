@@ -41,31 +41,41 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
 
-    - name: 4. Радикальный фикс Git-конфигурации и скачивание исходников
+    - name: 4. Высокоскоростной импорт исходников (Zero-Git HTTP API Загрузчик)
       run: |
-        # ГАРАНТИРОВАННЫЙ СБРОС БИТЫХ НАСТРОЕК GIT И ПРОКСИ ХОСТА
-        git config --global --unset-all http.proxy || true
-        git config --global --unset-all https.proxy || true
-        git config --global --unset-all url.https://github.com || true
-        git config --global --unset-all url.git@github.com:.insteadof || true
-        
-        # Переинициализация базовых параметров
-        git config --global user.name "AI Lowlevel Autonomous Engine"
-        git config --global user.email "autonomous-core@ai-android.internal"
-        
         mkdir -p $HOME/android
         cd $HOME/android
         
         echo "=== СКАЧИВАНИЕ БАЗЫ СБОРКИ (CRDROID) ==="
-        git clone https://github.com --branch 10.0 --depth=1 .
+        curl -L https://github.com -o base.zip
+        unzip -q base.zip && mv android-10.0/* . && mv android-10.0/.* . 2>/dev/null || true
+        rm -rf base.zip android-10.0
         
-        echo "=== СКАЧИВАНИЕ ОФИЦИАЛЬНЫХ ДЕРЕВЬЕВ LINEAGEOS ДЛЯ REALME 5 PRO ==="
-        git clone https://github.com --branch lineage-17.1 --depth=1 device/realme/spy
-        git clone https://github.com --branch lineage-17.1 --depth=1 device/realme/sdm710-common
-        git clone https://github.com --branch lineage-17.1 --depth=1 kernel/realme/sdm710
-        git clone https://github.com --branch lineage-17.1 --depth=1 vendor/realme
-        git clone https://github.com --branch lineage-17.1 --depth=1 device/qcom/sepolicy
-        git clone https://github.com --branch lineage-17.1 --depth=1 hardware/interfaces
+        echo "=== СКАЧИВАНИЕ ИСХОДНИКОВ УСТРОЙСТВА REALME 5 PRO ==="
+        mkdir -p device/realme/spy device/realme/sdm710-common kernel/realme/sdm710 vendor/realme device/qcom/sepolicy hardware/interfaces
+        
+        curl -L https://github.com -o spy.zip
+        unzip -q spy.zip && mv android_device_realme_spy-lineage-17.1/* device/realme/spy/ && rm -rf spy.zip android_device_realme_spy-lineage-17.1
+        
+        curl -L https://github.com -o sdm.zip
+        unzip -q sdm.zip && mv android_device_realme_sdm710-common-lineage-17.1/* device/realme/sdm710-common/ && rm -rf sdm.zip android_device_realme_sdm710-common-lineage-17.1
+        
+        curl -L https://github.com -o kernel.zip
+        unzip -q kernel.zip && mv android_kernel_realme_sdm710-lineage-17.1/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-lineage-17.1
+        
+        curl -L https://github.com -o vendor.zip
+        unzip -q vendor.zip && mv proprietary_vendor_realme-lineage-17.1/* vendor/realme/ && rm -rf vendor.zip proprietary_vendor_realme-lineage-17.1
+        
+        curl -L https://github.com -o sepolicy.zip
+        unzip -q sepolicy.zip && mv android_device_qcom_sepolicy-lineage-17.1/* device/qcom/sepolicy/ && rm -rf sepolicy.zip android_device_qcom_sepolicy-lineage-17.1
+        
+        curl -L https://github.com -o hw.zip
+        unzip -q hw.zip && mv android_hardware_interfaces-lineage-17.1/* hardware/interfaces/ && rm -rf hw.zip android_hardware_interfaces-lineage-17.1
+
+        # Локальная инициализация репозитория для компилятора Android
+        git init && git config user.name "AI" && git config user.email "bot@ai"
+        git add -A --force 2>/dev/null || true
+        git commit -m "Initial automated commit" 2>/dev/null || true
 
     - name: 5. Пре-компиляционные фиксы (Vanilla, Оптимизация под SDM712 и Верификация версии)
       run: |
