@@ -20,13 +20,13 @@ jobs:
         sudo apt-get clean
         df -h
 
-    - name: 3. Развертывание низкоуровневого окружения и Предустановка утилиты Repo
+    - name: 3. Развертывание низкоуровневого окружения и Фикс Python2/Ncurses
       run: |
         sudo chmod 777 /etc/resolv.conf
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
         
         # Системные линки Python3
         sudo ln -sf /usr/bin/python3 /usr/bin/python
@@ -44,37 +44,23 @@ jobs:
         git config --global user.name "AI Lowlevel Autonomous Engine"
         git config --global user.email "autonomous-core@ai-android.internal"
 
-    - name: 4. Инициализация исходников crDroid (Android 10)
+    - name: 4. Высокоскоростное скачивание исходников (Прямой Git-Клон без использования Repo)
       run: |
         mkdir -p $HOME/android
         cd $HOME/android
-        # ГАРАНТИРОВАННЫЙ ФИКС: Запрещаем утилите repo искать обновления в сети во время инициализации
-        export REPO_SKIP_BOOTSTRAP=1
-        repo init -u https://github.com -b 10.0 --git-lfs --depth=1 --no-repo-verify
+        
+        echo "=== СКАЧИВАНИЕ БАЗЫ СБОРКИ (CRDROID) ==="
+        git clone https://github.com --branch 10.0 --depth=1 .
+        
+        echo "=== СКАЧИВАНИЕ ОФИЦИАЛЬНЫХ ДЕРЕВЬЕВ LINEAGEOS ДЛЯ REALME 5 PRO ==="
+        git clone https://github.com --branch lineage-17.1 --depth=1 device/realme/spy
+        git clone https://github.com --branch lineage-17.1 --depth=1 device/realme/sdm710-common
+        git clone https://github.com --branch lineage-17.1 --depth=1 kernel/realme/sdm710
+        git clone https://github.com --branch lineage-17.1 --depth=1 vendor/realme
+        git clone https://github.com --branch lineage-17.1 --depth=1 device/qcom/sepolicy
+        git clone https://github.com --branch lineage-17.1 --depth=1 hardware/interfaces
 
-    - name: 5. Инжекция вечных манифестов LineageOS
-      run: |
-        mkdir -p $HOME/android/.repo/local_manifests
-        cat <<EOF > $HOME/android/.repo/local_manifests/spy.xml
-        <?xml version="1.0" encoding="UTF-8"?>
-        <manifest>
-          <remove-project name="LineageOS/android_device_qcom_sepolicy" />
-          <project name="LineageOS/android_device_qcom_sepolicy" path="device/qcom/sepolicy" remote="github" revision="lineage-17.1" />
-          <project name="LineageOS/android_device_realme_spy" path="device/realme/spy" remote="github" revision="lineage-17.1" />
-          <project name="LineageOS/android_device_realme_sdm710-common" path="device/realme/sdm710-common" remote="github" revision="lineage-17.1" />
-          <project name="LineageOS/android_kernel_realme_sdm710" path="kernel/realme/sdm710" remote="github" revision="lineage-17.1" />
-          <project name="TheMuppets/proprietary_vendor_realme" path="vendor/realme" remote="github" revision="lineage-17.1" />
-          <project name="LineageOS/android_hardware_interfaces" path="hardware/interfaces" remote="github" revision="lineage-17.1" />
-        </manifest>
-        EOF
-
-    - name: 6. Синхронизация кода (Умный перезапуск при сбоях сети)
-      run: |
-        cd $HOME/android
-        export REPO_SKIP_BOOTSTRAP=1
-        for i in {1..5}; do repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags && break || sleep 20; done
-
-    - name: 7. Пре-компиляционные фиксы (Vanilla, Оптимизация под SDM712 и Верификация версии)
+    - name: 5. Пре-компиляционные фиксы (Vanilla, Оптимизация под SDM712 и Верификация версии)
       run: |
         cd $HOME/android/device/realme/spy
         echo "TARGET_GAPPS_ARCH := arm64" >> BoardConfig.mk
@@ -85,7 +71,7 @@ jobs:
         find . -type f -name "*.mk" -exec sed -i 's/CRDROID_VERSION := 6.*/CRDROID_VERSION := 6.30/g' {} +
         echo "PRODUCT_PROPERTY_OVERRIDES += ro.crdroid.version=6.30" >> config/common.mk
 
-    - name: 8. ИИ-Петля Абсолютного Самоисцеления и Компиляции (Zero-Intervention Loop)
+    - name: 6. ИИ-Петля Абсолютного Самоисцеления и Компиляции (Zero-Intervention Loop)
       run: |
         cd $HOME/android
         export CCACHE_EXEC=/usr/bin/ccache
@@ -140,7 +126,7 @@ jobs:
           exit 1
         fi
 
-    - name: 9. Выгрузка готовых файлов сборки (.zip прошивка и образы .img)
+    - name: 7. Выгрузка готовых файлов сборки (.zip прошивка и образы .img)
       if: always()
       uses: actions/upload-artifact@v4
       with:
@@ -150,7 +136,7 @@ jobs:
           /home/runner/android/out/target/product/spy/recovery.img
           /home/runner/android/out/target/product/spy/boot.img
 
-    - name: 10. Выгрузка полных системных логов компиляции для истории ИИ
+    - name: 8. Выгрузка полных системных логов компиляции для истории ИИ
       if: always()
       uses: actions/upload-artifact@v4
       with:
