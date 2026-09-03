@@ -41,11 +41,10 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
 
-    - name: 4. Высокоскоростной импорт исходников (Изолированный подменитель протокола RPC)
+    - name: 4. Высокоскоростной импорт исходников (Прямая и чистая инициализация)
       run: |
-        # ГАЛАКТИЧЕСКИЙ ХАК: Перенаправляем весь внутренний трафик Git на RPC-транспорт, защищенный от сброса URL
-        git config --global url."https://github.com".insteadOf "git://://github.com"
-        git config --global url."https://github.com".insteadOf "https://github.com"
+        # Полностью очищаем глобальные правила во избежание ложных склеек адресов хоста
+        git config --global --unset-all url."https://github.com".insteadOf || true
         
         git config --global user.name "AI Lowlevel Autonomous Engine"
         git config --global user.email "autonomous-core@ai-android.internal"
@@ -53,9 +52,9 @@ jobs:
         mkdir -p $HOME/android
         cd $HOME/android
         
-        # Запуск инициализации базового манифеста
+        # Инициализируем манифест с жестким указанием репозитория самого инструмента repo
         export REPO_SKIP_BOOTSTRAP=1
-        repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify
+        repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify --repo-url=https://github.comGerritCodeReview/git-repo.git
         
         # Инжекция манифестов LineageOS во внутреннюю структуру утилиты repo
         mkdir -p .repo/local_manifests
@@ -72,7 +71,7 @@ jobs:
         </manifest>
         EOF
         
-        # Запуск параллельной выкачки всех подмодулей операционной системы (Repo Sync)
+        # Синхронизация папок операционной системы
         echo "=== ЗАПУСК ПОЛНОЙ СИНХРОНИЗАЦИИ ВСЕХ ПАПОК ОС ==="
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
