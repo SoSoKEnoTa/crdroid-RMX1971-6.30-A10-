@@ -30,15 +30,29 @@ jobs:
         
         sudo ln -sf /usr/bin/python3 /usr/bin/python
         
-        wget http://launchpadlibrarian.net || wget http://ubuntu.com
-        wget http://launchpadlibrarian.net || wget http://ubuntu.com
-        sudo dpkg -i libtinfo5_6.2-0ubuntu2.1_amd64.deb || sudo apt-get install -f -y
-        sudo dpkg -i libncurses5_6.2-0ubuntu2.1_amd64.deb || sudo apt-get install -f -y
-        rm -f *.deb
-        
-        # ГАРАНТИРОВАННЫЙ СИНТАКСИЧЕСКИЙ ФИКС СТРОКИ 42 (Base64 деплой скрипта repo)
+        echo "=== СБОРКА СОВМЕСТИМОСТИ NCURSES ==="
+        wget https://gnu.org
+        tar -xf ncurses-6.2.tar.gz && cd ncurses-6.2
+        ./configure --with-shared --with-versioned-syms --enable-widec --with-ticlib
+        make -j$(nproc --all)
+        sudo make install
+        sudo ln -sf /usr/local/lib/libncursesw.so.6 /usr/lib/libncurses.so.5
+        sudo ln -sf /usr/local/lib/libtinfo.so.6 /usr/lib/libtinfo.so.5
+        cd .. && rm -rf ncurses-6.2*
+
         mkdir -p $HOME/bin
-        echo "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uCmltcG9ydCBvcy微ltcG9ydCBzeX微ltcG9ydCBzdWJwcm9jZXNzCgpkZWYgbWFpbigpOgogICAgcmVwb19kaXIgPSBvcy5wYXRoLmV4cGFuZHVzZXIoJ34vLnJlcG8vcmVwbycpCiAgICBtYWluX3B5ID0gb3MucGF0aC5qb2luKHJlcG9fZGlyLCAnbWFpbi5weScpCiAgICBpZiBub3Qgb3MucGF0aC5leGlzdHMobWFpbl9weSk6CiAgICAgICAgb3MubWFrZWRpcnMob3MucGF0aC5leGlzdHMob3MucGF0aC5leHBhbmR1c2VyKCd+Ly5yZXBvJyksIGV4aXN0X29rPVRydWUpCiAgICAgICAgc3VicHJvY2Vzcy5ydW4oWydnaXQnLCAnY2xvbmUnLCAnaHR0cHM6Ly9naXRodWIuY29tL0dlcnJpdENvZGVSZXZpZXcvZ2l0LXJlcG8uZ2l0JywgcmVwb19kaXIsICctLWRlcHRoPTEnXSwgY2hlY2s9VHJ1ZSkKICAgIG9zLmV4ZWN2KHN5cy5leGVjdXRhYmxlLCBbc3lzLmV4ZWN1dGFibGUsIG1haW5fcHldICsgc3lzLmFyZ3ZbMToXKQoKaWYgX19uYW1lX18gPT0gJ19fbWFpbl9fJzoKICAgIG1haW4oKQo=" | base64 --decode > $HOME/bin/repo
+        printf '%s\n' \
+          '#!/usr/bin/env python' \
+          'import os, sys, subprocess' \
+          'def main():' \
+          '    repo_dir = os.path.expanduser("~/.repo/repo")' \
+          '    main_py = os.path.join(repo_dir, "main.py")' \
+          '    if not os.path.exists(main_py):' \
+          '        os.makedirs(os.path.expanduser("~/.repo"), exist_ok=True)' \
+          '        subprocess.run(["git", "clone", "https://github.com", repo_dir, "--depth=1"], check=True)' \
+          '    os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])' \
+          'if __name__ == "__main__":' \
+          '    main()' > $HOME/bin/repo
         chmod a+x $HOME/bin/repo
         sudo ln -sf $HOME/bin/repo /usr/bin/repo
         
@@ -90,8 +104,13 @@ jobs:
         export USE_CCACHE=1
         ccache -M 50G
         
-        source build/envsetup.sh
-        lunch crdroid_spy-userdebug
+        # Глобальные флаги совместимости для компиляторов Ubuntu 24.04
+        export CLANG_ALLOW_UNKNOWN_FLAGS=true
+        export Common_global_cflags="-Wno-error"
+        
+        echo "=== ИНИЦИАЛИЗАЦИЯ СРЕДЫ ==="
+        source build/envsetup.sh > init_env.log 2>&1
+        lunch crdroid_spy-userdebug >> init_env.log 2>&1 || echo "LUNCH_FAILED=true" >> init_env.log
         
         echo "=== СТАРТ УМНОЙ СБОРКИ ==="
         mka bacon -j$(nproc --all) > build.log 2>&1 || BUILD_FAILED=true
@@ -114,13 +133,21 @@ jobs:
           mka bacon -j$(nproc --all) > build.log 2>&1
         fi
 
-    - name: 9. Выгрузка готовых файлов сборки и логов компиляции
+    - name: 9. Выгрузка итоговых файлов сборки (.zip прошивка и образы .img)
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: crDroid-6.30-SelfHealed-Build
+        name: crDroid-6.30-Output-Artifacts
         path: |
           /home/runner/android/out/target/product/spy/crDroid*.zip
           /home/runner/android/out/target/product/spy/recovery.img
           /home/runner/android/out/target/product/spy/boot.img
+
+    - name: 10. Выгрузка полных системных логов компиляции для анализа ИИ
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: crDroid-6.30-Compilation-Logs
+        path: |
+          /home/runner/android/init_env.log
           /home/runner/android/build.log
