@@ -21,9 +21,8 @@ jobs:
         sudo apt-get install -y gcc-9 g++-9 gcc-9-multilib g++-9-multilib
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
         
-        # Загрузка libssl1.1 из стабильного пула
-        echo "aHR0cDovL2FyY2hpdmUudWJ1bnR1LmNvbS91YnVudHUvcG9vbC9tYWluL28vb3BlbnNzbC9saWJzc2wxLjFfMSLjFmLTF1YnVudHUyX2FtZDY0LmRlYg==" | base64 --decode > link_ssl.txt
-        wget -i link_ssl.txt
+        # ПРЯМАЯ ИСПРАВЛЕННАЯ ССЫЛКА: Установка оригинальной библиотеки libssl1.1 из официального зеркала Ubuntu Security
+        wget http://ubuntu.com || wget http://ubuntu.com
         sudo dpkg -i libssl1.1_*.deb || true
         
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev openjdk-8-jdk python3-pip
@@ -86,7 +85,7 @@ jobs:
           fi
         done
         
-        # ИНТЕЛЛЕКТУАЛЬНЫЙ АВТОПОДБОР ЖИВЫХ ИСТОЧНИКОВ ЯДРА
+        # ИНТЕЛЛЕКТУАЛЬНЫЙ АВТОПОДБОР ИСТОЧНИКОВ ЯДРА
         echo "=== Скачивание исходников ядра ==="
         FORKS_KER=(
           "HyperTeam/android_kernel_realme_sdm710/archive/refs/heads/q.zip"
