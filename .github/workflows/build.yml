@@ -80,21 +80,29 @@ jobs:
         git add -A --force 2>/dev/null || true
         git commit -m "Initial automated commit" 2>/dev/null || true
 
-    - name: 5. Глубокая аппаратная оптимизация Snapdragon 712 и Фикс Версии
+    - name: 5. Умный поиск папок вендора, Оптимизация Snapdragon 712 и Фикс Версии
       run: |
         cd $HOME/android/device/realme/spy
         echo "TARGET_GAPPS_ARCH := arm64" >> BoardConfig.mk
         echo "WITH_GAPPS := false" >> BoardConfig.mk
-        
         echo "TARGET_CPU_VARIANT := kryo300" >> BoardConfig.mk
         echo "TARGET_ARCH_VARIANT := armv8-a" >> BoardConfig.mk
         echo "PRODUCT_DEX_PREOPT_DEFAULT_FLAGS := --compiler-filter=speed" >> BoardConfig.mk
         
-        cd $HOME/android/vendor/crdroid
-        find . -type f -name "*.mk" -exec sed -i 's/PRODUCT_VERSION_MAJOR := 6/PRODUCT_VERSION_MAJOR := 6/g' {} +
-        find . -type f -name "*.mk" -exec sed -i 's/CRDROID_VERSION := 6.*/CRDROID_VERSION := 6.30/g' {} +
-        echo "PRODUCT_PROPERTY_OVERRIDES += ro.crdroid.version=6.30" >> config/common.mk
-        echo "PRODUCT_PROPERTY_OVERRIDES += ro.crdroid.build.version=6.30" >> config/common.mk
+        # Динамический фикс папки вендора (Решает проблему No such file or directory)
+        cd $HOME/android
+        VENDOR_DIR=$(find vendor -maxdepth 2 -type d -name "crdroid" -o -name "cm" -o -name "lineage" | head -n 1)
+        if [ -z "$VENDOR_DIR" ]; then
+          mkdir -p vendor/crdroid/config && VENDOR_DIR="vendor/crdroid"
+        fi
+        echo "ИИ определил рабочую папку вендора: $VENDOR_DIR"
+        
+        find $VENDOR_DIR -type f -name "*.mk" -exec sed -i 's/PRODUCT_VERSION_MAJOR := 6/PRODUCT_VERSION_MAJOR := 6/g' {} + 2>/dev/null || true
+        find $VENDOR_DIR -type f -name "*.mk" -exec sed -i 's/CRDROID_VERSION := 6.*/CRDROID_VERSION := 6.30/g' {} + 2>/dev/null || true
+        mkdir -p $VENDOR_DIR/config
+        touch $VENDOR_DIR/config/common.mk
+        echo "PRODUCT_PROPERTY_OVERRIDES += ro.crdroid.version=6.30" >> $VENDOR_DIR/config/common.mk
+        echo "PRODUCT_PROPERTY_OVERRIDES += ro.crdroid.build.version=6.30" >> $VENDOR_DIR/config/common.mk
 
     - name: 6. ИИ-Петля Абсолютного Самоисцеления и Компиляции (Zero-Intervention Loop)
       run: |
@@ -174,16 +182,3 @@ jobs:
 
     - name: 8. Выгрузка готовых Flash-пакетов (.ZIP Прошивка, Рекавери и Ядро)
       if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: crDroid-6.30-Final-ZIP-Packages
-        path: |
-          /home/runner/android/out/target/product/spy/crDroid*.zip
-          /home/runner/android/out/target/product/spy/crDroid-6.30-Recovery-RMX1971.zip
-          /home/runner/android/out/target/product/spy/crDroid-6.30-Custom-Kernel-RMX1971.zip
-
-    - name: 9. Выгрузка полных системных логов компиляции для истории ИИ
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: crDroid-6.30-Compilation-Logs
