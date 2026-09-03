@@ -41,23 +41,24 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
 
-        # ГАРАНТИРОВАННЫЙ ФИКС СТРОКИ URL (Локальное создание утилиты Repo)
+        # ГАРАНТИРОВАННЫЙ СИНТАКСИЧЕСКИЙ ФИКС СТРОКИ 48 (Чистый YAML-блок)
         mkdir -p $HOME/bin
         cat << 'EOF' > $HOME/bin/repo
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import os
 import sys
 import subprocess
 
 def main():
-    repo_dir = os.path.expanduser('~/.repo/repo')
-    main_py = os.path.join(repo_dir, 'main.py')
+    home = os.path.expanduser("~")
+    repo_dir = os.path.join(home, ".repo", "repo")
+    main_py = os.path.join(repo_dir, "main.py")
     if not os.path.exists(main_py):
-        os.makedirs(os.path.expanduser('~/.repo'), exist_ok=True)
-        subprocess.run(['git', 'clone', 'https://github.com', repo_dir, '--depth=1'], check=True)
+        os.makedirs(os.path.join(home, ".repo"), exist_ok=True)
+        subprocess.run(["git", "clone", "https://github.com", repo_dir, "--depth=1"], check=True)
     os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
 EOF
         chmod a+x $HOME/bin/repo
