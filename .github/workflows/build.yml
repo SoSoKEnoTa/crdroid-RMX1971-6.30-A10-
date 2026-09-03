@@ -41,24 +41,28 @@ jobs:
         sudo ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/libtinfo.so.5
         sudo ln -sf /lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/libtinfo.so.6
 
-    - name: 4. Высокоскоростной импорт исходников (Галактический фикс зеркала Repo)
+    - name: 4. Высокоскоростной импорт исходников (Zero-Git HTTP Загрузчик утилиты Repo)
       run: |
-        # Полное уничтожение любых кривых правил подмены ссылок хоста
+        # ТОТАЛЬНОЕ УНИЧТОЖЕНИЕ СИСТЕМНОГО ХАКА ХОСТА
+        # Принудительно очищаем глобальный и системный gitconfig, стирая зашитые редиректы
         git config --global --unset-all url."https://github.com".insteadOf || true
+        sudo git config --system --unset-all url."https://github.com".insteadOf || true
         
-        git config --global user.name "AI Lowlevel Autonomous Engine"
-        git config --global user.email "autonomous-core@ai-android.internal"
+        # Перезаписываем глобальный конфиг, запрещая любые автоматические insteadOf
+        echo -e "[user]\n\tname = AI Lowlevel Autonomous Engine\n\temail = autonomous-core@ai-android.internal" > $HOME/.gitconfig
         
         mkdir -p $HOME/android
         cd $HOME/android
         
-        # СОЧНЕЙШИЙ ИНЖЕНЕРНЫЙ ХАК: Разворачиваем утилиту локально, обманывая ломающийся парсер Google
-        mkdir -p .repo
-        git clone https://github.comGerritCodeReview/git-repo.git .repo/repo --depth=1
+        # СКАЧИВАЕМ REPO НАПРЯМУЮ ЧЕРЕЗ API В ОБХОД GIT CLONE
+        mkdir -p .repo/repo
+        curl -L https://github.comGerritCodeReview/git-repo/archive/refs/heads/main.tar.gz -o repo.tar.gz
+        tar -xf repo.tar.gz --strip-components=1 -C .repo/repo
+        rm -f repo.tar.gz
         
-        # Инициализируем исходники из локально созданного зеркала! Никаких внешних редиректов!
+        # Инициализируем исходники. Флаг --no-clone-bundle предотвратит скрытые вызовы Git-протокола
         export REPO_SKIP_BOOTSTRAP=1
-        repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify
+        repo init -u https://github.comcrdroidandroid/android.git -b 10.0 --depth=1 --no-repo-verify --no-clone-bundle
         
         # Инжекция манифестов LineageOS во внутреннюю структуру утилиты repo
         mkdir -p .repo/local_manifests
@@ -75,7 +79,7 @@ jobs:
         </manifest>
         EOF
         
-        # Запуск параллельной выкачки всех папок операционной системы
+        # Запуск полной синхронизации
         echo "=== ЗАПУСК ПОЛНОЙ СИНХРОНИЗАЦИИ ВСЕХ ПАПОК ОС ==="
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
@@ -163,4 +167,3 @@ jobs:
         path: |
           /home/runner/android/init_env.log
           /home/runner/android/build.log
-
