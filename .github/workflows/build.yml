@@ -1,4 +1,4 @@
-name: Self-Healing-crDroid-Realme-RMX1971
+name: Pure-Lineage-crDroid-Realme-RMX1971
 
 on:
   workflow_dispatch:
@@ -35,109 +35,95 @@ jobs:
         chmod a+x ~/bin/repo
         echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
 
-    - name: Intellect Init and Auto-Download
+    - name: Complete LineageOS Resource Deployment
       run: |
         export PATH=$HOME/bin:$PATH
         
-        # Сброс локального кэша Git
-        rm -f ~/.gitconfig
-        git config --global user.name "SelfHealing-Bot"
-        git config --global user.email "bot@ai-core.internal"
-        git config --global http.sslVerify false
-        git config --global http.postBuffer 524288000
-        
         mkdir -p ~/crdroid_workspace && cd ~/crdroid_workspace
         
-        echo "=== Синхронизация стабильной платформы Android 10 через REPO ==="
-        repo init --depth=1 -u https://github.com -b android-10.0.0
+        # Создаем полную системную структуру каталогов Android 10
+        mkdir -p build/make vendor/crdroid device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 out/target/product/RMX1971
         
-        export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
-        rm -rf .repo/local_manifests
+        echo "=== [1/4] Загрузка сборочного конвейера (build/make) ==="
+        curl -f -L https://github.com -o platform_build.zip
+        unzip -q platform_build.zip && mv android_build-lineage-17.1/* build/make/ && rm -f platform_build.zip
         
-        # Синхронизируем базовую ОС
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
+        echo "=== [2/4] Загрузка базовой корневой платформы Android ==="
+        curl -f -L https://github.com -o platform_root.zip
+        unzip -q platform_root.zip && mv android-lineage-17.1/* ./ 2>/dev/null || true && rm -f platform_root.zip
         
-        # Создаем целевую структуру папок
-        mkdir -p build/make/core vendor/crdroid device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 out/target/product/RMX1971
+        # Фиксируем envsetup.sh в корне рабочего пространства
+        if [ -f "build/make/envsetup.sh" ]; then cp build/make/envsetup.sh ./; fi
         
-        # УЛЬТИМАТИВНЫЙ ХАК: Если папка сборщика пуста, качаем build/make через CURL в виде ZIP-архива в обход Git!
-        if [ ! -f "build/make/core/envsetup.mk" ]; then
-          echo "=== Развертывание аварийного сборочного конвейера через CURL ==="
-          rm -rf build/make
-          curl -f -L https://github.com -o platform_build.zip
-          unzip -q platform_build.zip
-          mv platform_build-android-10.0.0 build/make
-          rm -f platform_build.zip
-          cp build/make/envsetup.sh ./ 2>/dev/null || true
-        fi
-        
-        # ИНТЕЛЛЕКТУАЛЬНЫЙ АВТОПОДБОР ЖИВЫХ ИСТОЧНИКОВ ДЕРЕВА УСТРОЙСТВА
-        echo "=== Скачивание дерева устройства ==="
+        echo "=== [3/4] Интеллектуальный автоподбор дерева устройства ==="
         FORKS_DEV=(
           "HyperTeam/android_device_realme_RMX1971/archive/refs/heads/q.zip"
           "HyperTeam/android_device_realme_RMX1971/archive/refs/heads/ten.zip"
           "crdroidandroid/android_device_realme_RMX1971/archive/refs/heads/10.0.zip"
         )
         for target in "${FORKS_DEV[@]}"; do
-          echo "Проверка зеркала: https://github.com"
+          echo "Сканирование: https://github.com"
           if curl -f -L "https://github.com" -o device.zip 2>/dev/null; then
             BRANCH_NAME=$(echo "$target" | awk -F'/' '{print $NF}' | sed 's/\.zip//')
             unzip -q device.zip && mv android_device_realme_RMX1971-${BRANCH_NAME}/* device/realme/RMX1971/ 2>/dev/null || mv *RMX1971*/* device/realme/RMX1971/ 2>/dev/null
             rm -rf device.zip *RMX1971*
-            echo "-> УСПЕШНО НАЙДЕНО И РАЗВЕРНУТО!" && break
+            echo "-> Дерево устройства успешно развернуто!" && break
           fi
         done
         
-        # ИНТЕЛЛЕКТУАЛЬНЫЙ АВТОПОДБОР ИСТОЧНИКОВ ЯДРА
-        echo "=== Скачивание исходников ядра ==="
+        echo "=== [4/4] Интеллектуальный автоподбор исходников ядра ==="
         FORKS_KER=(
           "HyperTeam/android_kernel_realme_sdm710/archive/refs/heads/q.zip"
           "HyperTeam/android_kernel_realme_sdm710/archive/refs/heads/ten.zip"
           "crdroidandroid/android_kernel_realme_sdm710/archive/refs/heads/10.0.zip"
         )
         for target in "${FORKS_KER[@]}"; do
-          echo "Проверка зеркала: https://github.com"
+          echo "Сканирование: https://github.com"
           if curl -f -L "https://github.com" -o kernel.zip 2>/dev/null; then
             BRANCH_NAME=$(echo "$target" | awk -F'/' '{print $NF}' | sed 's/\.zip//')
             unzip -q kernel.zip && mv android_kernel_realme_sdm710-${BRANCH_NAME}/* kernel/realme/sdm710/ 2>/dev/null || mv *sdm710*/* kernel/realme/sdm710/ 2>/dev/null
             rm -rf kernel.zip *sdm710*
-            echo "-> УСПЕШНО НАЙДЕНО И РАЗВЕРНУТО!" && break
+            echo "-> Исходники ядра успешно развернуты!" && break
           fi
         done
         
+        # Создание аппаратной заглушки вендора устройства для Snapdragon 712
         echo "PRODUCT_COPY_FILES += " > vendor/realme/RMX1971/RMX1971-vendor.mk
 
     - name: Smart AI-Fixer & Optimization
       run: |
         cd ~/crdroid_workspace
         
-        # Аварийная инжекция envsetup.sh если файл не создался в корне
-        if [ ! -f "envsetup.sh" ] && [ -f "build/make/envsetup.sh" ]; then
-          cp build/make/envsetup.sh ./
-        fi
+        if [ ! -f "envsetup.sh" ] && [ -f "build/make/envsetup.sh" ]; then cp build/make/envsetup.sh ./; fi
         
-        # Вырезание стокового хлама из конфигурационных файлов
+        # Очистка от стокового хлама под чистую Vanilla-сборку под NikGApps
         for mk_file in build/make/target/product/handheld_product.mk build/make/target/product/core_tiny.mk build/make/target/product/main.mk; do
           if [ -f "$mk_file" ]; then sed -i '/Calendar/d; /Email/d; /Gallery2/d; /Music/d' "$mk_file"; fi
         done
         
-        # Тюнинг производительности Snapdragon 712 (Kryo 360)
+        # Инжекция флагов низкоуровневого разгона Kryo 360 и Vulkan API
         if [ -f device/realme/RMX1971/BoardConfig.mk ]; then
           echo -e "TARGET_CPU_ABI := arm64-v8a\nTARGET_USES_O3 := true\nMALLOC_SVELTE := true\nDEBUG_CFLAGS :=\nTARGET_USES_VULKAN := true" >> device/realme/RMX1971/BoardConfig.mk
         fi
 
-    - name: Compile and Self-Heal
+    - name: Setup ccache
+      run: |
+        echo "USE_CCACHE=1" >> $GITHUB_ENV
+        echo "CCACHE_EXEC=/usr/bin/ccache" >> $GITHUB_ENV
+        ccache -M 50G
+        ccache -z
+
+    - name: Compile and Self-Heal Rom
       run: |
         export PATH=$HOME/bin:$PATH
         cd ~/crdroid_workspace
         
-        # Инициализация сборочной среды Android
         . envsetup.sh || . build/make/envsetup.sh || true
         
-        # Инициализация конфигурации устройства
-        lunch aosp_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug || lunch lineage_RMX1971-eng || true
+        # Инициализация под кодовыми именами платформы LineageOS
+        lunch lineage_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug || lunch lineage_RMX1971-eng || true
         
-        # Старт компиляции с подстраховкой на лету
+        # Компиляция прошивки со встроенным перехватчиком ошибок
         mka bacon -j$(nproc --all) || {
           echo "=== ОБНАРУЖЕН СБОЙ СБОРКИ. ЗАПУСК АВТОФИКСЕРА ==="
           find . -name "*.py" -type f -exec sed -i 's/isAlive()/is_alive()/g' {} + 2>/dev/null || true
@@ -156,14 +142,14 @@ jobs:
         if [ -d "out/target/product/RMX1971" ]; then
           cd out/target/product/RMX1971/ && mkdir -p OF_Build/sdcard
           if [ -f "recovery.img" ]; then cp recovery.img OF_Build/; fi
-          echo "OrangeFox Recovery for Realme 5 Pro - Self-Healed Build" > OF_Build/sdcard/fox.version
+          echo "OrangeFox Recovery for Realme 5 Pro - Optimized Custom Build" > OF_Build/sdcard/fox.version
           cd OF_Build && zip -r ../OrangeFox-RMX1971-Ultra-Custom.zip *
         fi
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: crDroid-6.30-SelfHealed-Realme-RMX1971
+        name: crDroid-6.30-LineageEngine-Realme-RMX1971
         path: |
           ~/crdroid_workspace/out/target/product/RMX1971/*.zip
         if-no-files-found: ignore
