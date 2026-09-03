@@ -1,172 +1,98 @@
-name: Build-crDroid-6.30-r75-RealROM-Realme-RMX1971
+name: ROM Compiler Ultra (crDroid 6 - RMX1971)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Ручной запуск из интерфейса GitHub
 
 jobs:
-  compile_firmware_rmx1971:
-    runs-on: ubuntu-22.04
+  compile:
+    runs-on: ubuntu-20.04
     steps:
-    - name: Clean disk space
-      run: |
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /usr/local/lib/android
-        sudo rm -rf /opt/ghc
-        sudo rm -rf /opt/hostedtoolcache/CodeQL
-        sudo apt-get clean
+    - name: Checkout Репозитория
+      uses: actions/checkout@v3
 
-    - name: Install build tools
+    - name: Очистка дискового пространства виртуальной машины
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+        sudo apt-get clean
+        df -h
+
+    - name: Установка низкоуровневых утилит компиляции (Среда AOSP)
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-9 g++-9 gcc-9-multilib g++-9-multilib jq
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
-        
-        # Установка оригинальной библиотеки libssl1.1 из официального зеркала Ubuntu Security
-        wget http://ubuntu.com || wget http://ubuntu.com
-        sudo dpkg -i libssl1.1_*.deb || true
-        
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev openjdk-8-jdk python3-pip
-        
-        sudo apt-get install -y python2 || (sudo apt-get install -y python2-minimal && curl https://pypa.io --output get-pip.py && sudo python2 get-pip.py)
-        sudo ln -sf /usr/bin/python2 /usr/bin/python
-        
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.1-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses5
+
+    - name: Настройка утилиты Google Repo
+      run: |
+        git config --global user.name "Lead Lowlevel Developer"
+        git config --global user.email "core@kernel.android"
         mkdir -p ~/bin
-        curl https://googlesource.com | base64 --decode > ~/bin/repo
+        curl https://googleapis.com > ~/bin/repo
         chmod a+x ~/bin/repo
-        echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
+        sudo ln -sf ~/bin/repo /usr/bin/repo
 
-    - name: Complete LineageOS Resource Deployment
+    - name: Инициализация репозитория исходного кода crDroid 6.x (Android 10)
       run: |
-        export PATH=$HOME/bin:$PATH
-        
-        # СБРОС СЕТЕВЫХ ОГРАНИЧЕНИЙ ДЛЯ НАСТОЯЩЕГО REPO SYNC
-        rm -f ~/.gitconfig
-        git config --global user.name "AI-LowLevel-Developer"
-        git config --global user.email "developer@ai-core.internal"
-        git config --global http.sslVerify false
-        git config --global http.postBuffer 1073741824
-        
-        mkdir -p ~/crdroid_workspace && cd ~/crdroid_workspace
-        
-        # Инициализируем настоящую кодовую базу Android 10 через универсальный стабильный манифест
-        repo init --depth=1 -u https://github.com -b lineage-17.1
-        export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
-        
-        # Скачиваем ВСЮ операционную систему Android 10 целиком
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents
-        
-        # Разворачиваем структуру вендора crDroid на базе стабильных исходников кастомизации
-        if [ -d "vendor/lineage" ]; then
-          cp -r vendor/lineage vendor/crdroid
-        fi
-        
-        # Зачищаем целевые папки устройств перед интеграцией нашего оптимизированного Qualcomm-контура
-        rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
-        mkdir -p device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
-        
-        # Скачивание стабильных исходников Realme 5 Pro через CURL из архивных Base64 потоков
-        echo "=== Скачивание дерева устройства ==="
-        echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2RldmljZV9yZWFsbWVfUk1YMTk3MS9hcmNoaXZlL3JlZnMvaGVhZHMvcS56aXA=" | base64 --decode > l_dev.txt
-        curl -f -L -K l_dev.txt -o device.zip || curl -f -L https://github.com -o device.zip
-        unzip -q device.zip && mv android_device_realme_RMX1971-q/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-q l_dev.txt
-        
-        echo "=== Скачивание исходников ядра ==="
-        echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2tlcm5lbF9yZWFsbWVfc2RtNzEwL2FyY2hpdmUvcmVmcy9oZWFkcy9xLnppcA==" | base64 --decode > l_ker.txt
-        curl -f -L -K l_ker.txt -o kernel.zip || curl -f -L https://github.com -o kernel.zip
-        unzip -q kernel.zip && mv android_kernel_realme_sdm710-q/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-q l_ker.txt
-        
-        # Интегрируем проприетарный стабильный вендор Realme
-        echo "=== Скачивание проприетарного вендора девайса ==="
-        curl -f -L https://github.com -o vendor_device.zip || \
-        curl -f -L https://github.com -o vendor_device.zip
-        
-        if [ -f "vendor_device.zip" ]; then
-          unzip -q vendor_device.zip
-          mv vendor_realme_RMX1971-10.0/* vendor/realme/RMX1971/ 2>/dev/null || mv android_vendor_realme_RMX1971-6.27/* vendor/realme/RMX1971/ 2>/dev/null || true
-          rm -rf vendor_device.zip vendor_realme_RMX1971-10.0 android_vendor_realme_RMX1971-6.27
-        fi
+        mkdir ~/android
+        cd ~/android
+        repo init -u https://github.com -b 10.0 --git-lfs --depth=1
 
-    - name: Smart AI-Fixer & Low-Level r75 Platform Tuning
+    - name: Генерация Локального Манифеста (Дерево устройств Realme 5 Pro)
       run: |
-        cd ~/crdroid_workspace
-        
-        # НИЗКОУРОВНЕВАЯ ЖЕСТКАЯ ФИКСАЦИЯ БИЛДА И ПАТЧЕЙ БЕЗОПАСНОСТИ ПОД android-10.0.0_r75 (QSV1.210329.054)
-        if [ -f build/core/version_defaults.mk ]; then
-          sed -i 's/PLATFORM_VERSION := .*/PLATFORM_VERSION := 10/g' build/core/version_defaults.mk
-          sed -i 's/PLATFORM_SECURITY_PATCH := .*/PLATFORM_SECURITY_PATCH := 2021-03-05/g' build/core/version_defaults.mk
-          sed -i 's/BUILD_ID := .*/BUILD_ID := QSV1.210329.054/g' build/core/version_defaults.mk
-        fi
-        
-        # Принудительный Fake-Versing имени прошивки в системе конфигурации crDroid 6.30
-        if [ -f vendor/crdroid/config/common.mk ]; then
-          sed -i 's/CRDROID_VERSION := .*/CRDROID_VERSION := 6.30/g' vendor/crdroid/config/common.mk
-          sed -i 's/lineage_/crDroid_/g' vendor/crdroid/config/common.mk
-        fi
-        
-        # Тотальное удаление стокового хлама из дефолтных пакетов под чистую Vanilla-архитектуру
-        for mk_file in build/make/target/product/handheld_product.mk build/make/target/product/core_tiny.mk build/make/target/product/main.mk; do
-          if [ -f "$mk_file" ]; then
-            sed -i '/Calendar/d; /Email/d; /Gallery2/d; /Music/d; /Launcher3/d' "$mk_file"
-            # Интегрируем современный Lawnchair/Pixel Launcher взамен старого Launcher3
-            echo "PRODUCT_PACKAGES += Lawnchair Quickstep" >> "$mk_file"
-          fi
-        done
-        
-        # Низкоуровневый разгон ядра компилятора, ядер Kryo 360 и активация Vulkan API графики Adreno 616
-        if [ -f device/realme/RMX1971/BoardConfig.mk ]; then
-          echo -e "\n# НИЗКОУРОВНЕВЫЙ РАЗГОН ИИ-ЯДРА И ГРАФИКИ" >> device/realme/RMX1971/BoardConfig.mk
-          echo -e "TARGET_CPU_ABI := arm64-v8a\nTARGET_USES_O3 := true\nMALLOC_SVELTE := true\nDEBUG_CFLAGS :=\nTARGET_USES_VULKAN := true" >> device/realme/RMX1971/BoardConfig.mk
-          echo -e "BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive\nTARGET_POWER_SCHEDUTIL := true" >> device/realme/RMX1971/BoardConfig.mk
-        fi
+        mkdir -p ~/android/.repo/local_manifests
+        cat <<EOF > ~/android/.repo/local_manifests/spy.xml
+        <?xml version="1.0" encoding="UTF-8"?>
+        <manifest>
+          <remove-project name="LineageOS/android_device_qcom_sepolicy" />
+          
+          <!-- Device Tree RMX1971 -->
+          <project name="LineageOS/android_device_realme_spy" path="device/realme/spy" remote="github" revision="lineage-17.1" />
+          <project name="LineageOS/android_device_realme_sdm710-common" path="device/realme/sdm710-common" remote="github" revision="lineage-17.1" />
+          
+          <!-- Custom Kernel SDM712 -->
+          <project name="LineageOS/android_kernel_realme_sdm710" path="kernel/realme/sdm710" remote="github" revision="lineage-17.1" />
+          
+          <!-- Vendor Blobs (Вместо сбойного zip-архива) -->
+          <project name="TheMuppets/proprietary_vendor_realme" path="vendor/realme" remote="github" revision="lineage-17.1" />
+          
+          <project name="LineageOS/android_hardware_interfaces" path="hardware/interfaces" remote="github" revision="lineage-17.1" />
+        </manifest>
+        EOF
 
-    - name: Setup ccache
+    - name: Синхронизация исходного кода (Repo Sync)
       run: |
-        echo "USE_CCACHE=1" >> $GITHUB_ENV
-        echo "CCACHE_EXEC=/usr/bin/ccache" >> $GITHUB_ENV
+        cd ~/android
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+
+    - name: Тонкая низкоуровневая настройка (Vanilla-конфиг и Оптимизация Kryo 360)
+      run: |
+        cd ~/android/device/realme/spy
+        # Принудительное отключение GApps для чистой Vanilla
+        echo "TARGET_GAPPS_ARCH := arm64" >> BoardConfig.mk
+        echo "WITH_GAPPS := false" >> BoardConfig.mk
+        # Оптимизация под ядра процессора Snapdragon 712
+        echo "TARGET_CPU_VARIANT := kryo300" >> BoardConfig.mk
+
+    - name: Компиляция Ядра, Рекавери и Прошивки
+      run: |
+        cd ~/android
+        export CCACHE_EXEC=/usr/bin/ccache
+        export USE_CCACHE=1
         ccache -M 50G
-        ccache -z
+        
+        # Запуск среды сборки Android
+        source build/envsetup.sh
+        
+        # Выбор цели сборки для Realme 5 Pro (spy)
+        lunch crdroid_spy-userdebug
+        
+        # Сборка финального пакета прошивки и образов .img
+        mka bacon -j$(nproc --all)
 
-    - name: Compile Real crDroid 6.30 r75 ROM
-      run: |
-        export PATH=$HOME/bin:$PATH
-        cd ~/crdroid_workspace
-        
-        # Загрузка полноценной сборочной среды Android
-        . build/envsetup.sh
-        
-        # Инициализируем настоящую конфигурацию под Realme 5 Pro
-        lunch lineage_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug
-        
-        # Запуск компиляции. В случае ошибки скриптов Python 3 — автофиксер правит код на лету
-        mka bacon -j$(nproc --all) || {
-          echo "=== ОБНАРУЖЕН СБОЙ СБОРКИ. ЗАПУСК АВТОФИКСЕРА ==="
-          find . -name "*.py" -type f -exec sed -i 's/isAlive()/is_alive()/g' {} + 2>/dev/null || true
-          find . -name "BoardConfig.mk" -type f -exec sed -i 's/WITHOUT_CHECK_API := false/WITHOUT_CHECK_API := true/g' {} + 2>/dev/null || true
-          mka bacon -j$(nproc --all)
-        }
-
-    - name: Compile Custom OrangeFox Recovery
-      run: |
-        export PATH=$HOME/bin:$PATH
-        cd ~/crdroid_workspace
-        . build/envsetup.sh
-        lunch lineage_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug
-        
-        # Сборка кастомного образа рекавери OrangeFox на базе нового кастомного ядра
-        mka recoveryimage -j$(nproc --all)
-        
-        if [ -d "out/target/product/RMX1971" ]; then
-          cd out/target/product/RMX1971/ && mkdir -p OF_Build/sdcard
-          cp recovery.img OF_Build/
-          echo "OrangeFox Recovery for Realme 5 Pro - Optimized Custom Build r75" > OF_Build/sdcard/fox.version
-          cd OF_Build && zip -r ../OrangeFox-RMX1971-Ultra-Custom.zip *
-        fi
-
-    - name: Upload Real r75 Artifacts
-      uses: actions/upload-artifact@v4
+    - name: Выгрузка готовых файлов сборки (.zip прошивка и .img ядра/рекавери)
+      uses: actions/upload-artifact@v3
       with:
-        name: crDroid-6.30-r75-ROM-Realme-RMX1971
+        name: crDroid-6-RMX1971-Vanilla-Build
         path: |
-          ~/crdroid_workspace/out/target/product/RMX1971/lineage-*.zip
-          ~/crdroid_workspace/out/target/product/RMX1971/crDroid-*.zip
-          ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
+          ~/android/out/target/product/spy/crDroid*.zip
+          ~/android/out/target/product/spy/recovery.img
+          ~/android/out/target/product/spy/boot.img
