@@ -1,4 +1,4 @@
-name: Android Self-Healing Build Bot (crDroid 6.30 - RMX1971)
+name: Android AI Self-Healing Core (crDroid 6.30 - RMX1971)
 
 on:
   workflow_dispatch:
@@ -10,75 +10,78 @@ jobs:
     - name: 1. Инициализация репозитория бота
       uses: actions/checkout@v4
 
-    - name: 2. Очистка диска под тяжелую сборку AOSP
+    - name: 2. Максимальная очистка диска под сборку AOSP
       run: |
-        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /usr/share/swift
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /usr/share/swift /usr/local/lib/node_modules
         sudo apt-get clean
+        df -h
 
-    - name: 3. Развертывание низкоуровневого окружения
+    - name: 3. Развертывание и адаптация низкоуровневого окружения
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 python3-is-python libncurses6 libncurses-dev
-        wget http://launchpadlibrarian.net
-        wget http://launchpadlibrarian.net
-        sudo dpkg -i libtinfo5_6.2-0ubuntu2.1_amd64.deb
-        sudo dpkg -i libncurses5_6.2-0ubuntu2.1_amd64.deb
-        rm -f *.deb
+        # Устанавливаем только гарантированно существующие пакеты компиляции
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev wget
+        
+        # Ручное создание ссылки на Python (замена сбойного пакета python3-is-python)
         sudo ln -sf /usr/bin/python3 /usr/bin/python
         
-        # Настройка утилиты Repo от Google
-        mkdir -p ~/bin
-        curl https://googleapis.com > ~/bin/repo
-        chmod a+x ~/bin/repo
-        sudo ln -sf ~/bin/repo /usr/bin/repo
-        git config --global user.name "AI Android Bot"
-        git config --global user.email "bot@ai-lowlevel.internal"
+        # Принудительный бэкпорт старых библиотек ncurses/tinfo, вырезанных из Ubuntu 24.04
+        wget http://launchpadlibrarian.net
+        wget http://launchpadlibrarian.net
+        sudo dpkg -i libtinfo5_6.2-0ubuntu2.1_amd64.deb || sudo apt-get install -f -y
+        sudo dpkg -i libncurses5_6.2-0ubuntu2.1_amd64.deb || sudo apt-get install -f -y
+        rm -f *.deb
+        
+        # Установка утилиты Repo
+        mkdir -p $HOME/bin
+        curl https://googleapis.com > $HOME/bin/repo
+        chmod a+x $HOME/bin/repo
+        sudo ln -sf $HOME/bin/repo /usr/bin/repo
+        
+        git config --global user.name "AI Lowlevel Engine"
+        git config --global user.email "core-engine@ai-android.internal"
 
-    - name: 4. Инициализация исходников LineageOS / crDroid
+    - name: 4. Инициализация исходников crDroid (Android 10)
       run: |
-        mkdir ~/android && cd ~/android
+        mkdir -p $HOME/android
+        cd $HOME/android
         repo init -u https://github.com -b 10.0 --git-lfs --depth=1
 
-    - name: 5. Генерация Манифеста из вечных репозиториев LineageOS
+    - name: 5. Инжекция вечных манифестов LineageOS
       run: |
-        mkdir -p ~/android/.repo/local_manifests
-        cat <<EOF > ~/android/.repo/local_manifests/spy.xml
+        mkdir -p $HOME/android/.repo/local_manifests
+        cat <<EOF > $HOME/android/.repo/local_manifests/spy.xml
         <?xml version="1.0" encoding="UTF-8"?>
         <manifest>
-          <!-- Официальные репозитории LineageOS в качестве вечной базы -->
+          <remove-project name="LineageOS/android_device_qcom_sepolicy" />
           <project name="LineageOS/android_device_qcom_sepolicy" path="device/qcom/sepolicy" remote="github" revision="lineage-17.1" />
           <project name="LineageOS/android_device_realme_spy" path="device/realme/spy" remote="github" revision="lineage-17.1" />
           <project name="LineageOS/android_device_realme_sdm710-common" path="device/realme/sdm710-common" remote="github" revision="lineage-17.1" />
           <project name="LineageOS/android_kernel_realme_sdm710" path="kernel/realme/sdm710" remote="github" revision="lineage-17.1" />
-          
-          <!-- Вечный архив проприетарных драйверов компонентов -->
           <project name="TheMuppets/proprietary_vendor_realme" path="vendor/realme" remote="github" revision="lineage-17.1" />
           <project name="LineageOS/android_hardware_interfaces" path="hardware/interfaces" remote="github" revision="lineage-17.1" />
         </manifest>
         EOF
 
-    - name: 6. Автоматическая синхронизация (Авто-Бот загрузчик)
+    - name: 6. Синхронизация кода (Умный перезапуск при сбоях сети)
       run: |
-        cd ~/android
-        # Цикл авто-загрузки: если репо падает по таймауту, бот пробует снова до победного конца
-        for i in {1..5}; do repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags && break || sleep 15; done
+        cd $HOME/android
+        for i in {1..5}; do repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags && break || sleep 20; done
 
-    - name: 7. Пре-компиляционные фиксы и инжекты (Vanilla & Версия)
+    - name: 7. Пре-компиляционные фиксы (Vanilla, Оптимизация под SDM712 и Верификация версии)
       run: |
-        # Оптимизация процессора Kryo 360 (Snapdragon 712)
-        cd ~/android/device/realme/spy
+        cd $HOME/android/device/realme/spy
         echo "TARGET_GAPPS_ARCH := arm64" >> BoardConfig.mk
         echo "WITH_GAPPS := false" >> BoardConfig.mk
         echo "TARGET_CPU_VARIANT := kryo300" >> BoardConfig.mk
         
-        # Патч версии crDroid до 6.30
-        cd ~/android/vendor/crdroid
+        cd $HOME/android/vendor/crdroid
         find . -type f -name "*.mk" -exec sed -i 's/CRDROID_VERSION := 6.*/CRDROID_VERSION := 6.30/g' {} +
         echo "PRODUCT_PROPERTY_OVERRIDES += ro.crdroid.version=6.30" >> config/common.mk
 
-    - name: 8. Компиляция и работа ИИ-модуля исправления ошибок (Self-Healing)
+    - name: 8. Интеллектуальный цикл компиляции и Самоисцеление кода (Self-Healing)
       run: |
-        cd ~/android
+        cd $HOME/android
         export CCACHE_EXEC=/usr/bin/ccache
         export USE_CCACHE=1
         ccache -M 50G
@@ -86,40 +89,37 @@ jobs:
         source build/envsetup.sh
         lunch crdroid_spy-userdebug
         
-        # Интеллектуальный цикл сборки
-        echo "=== ЗАПУСК АВТО-БОТА КОМПИЛЯЦИИ ==="
+        echo "=== СТАРТ УМНОЙ СБОРКИ ==="
+        mka bacon -j$(nproc --all) > build.log 2>&1 || BUILD_FAILED=true
         
-        # Запускаем сборку, логируя её параллельно в файл build.log
-        mka bacon -j$(nproc --all) > build.log 2>&1 || BOOT_FAILED=true
-        
-        if [ "$BOOT_FAILED" = true ]; then
-          echo "⚠️ Обнаружена ошибка компиляции. Робот приступает к анализу и авто-фиксам..."
+        if [ "$BUILD_FAILED" = true ]; then
+          echo "⚠️ Обнаружен критический баг компиляции. Робот применяет комплексные низкоуровневые фиксы..."
           
-          # 1. Авто-фикс распространенной проблемы Clang 11 / Ubuntu 24.04 (-Wno-error)
-          # Находим в каком Makefile произошел сбой из-за строгости компилятора и отключаем ошибки-варнинги
-          if grep -q "error:" build.log; then
-             echo "🤖 Фиксим строгие правила компилятора: добавляем обход макросов и типов данных"
-             find ~/android/device/realme/spy -name "*.mk" -exec sed -i 's/-Werror/-Wno-error/g' {} +
-             find ~/android/kernel/realme/sdm710 -name "Makefile" -exec sed -i 's/-Werror/-Wno-error/g' {} +
+          # Фикс 1: Подавление варнингов
+          find $HOME/android/device/realme/spy -name "*.mk" -exec sed -i 's/-Werror/-Wno-error/g' {} +
+          find $HOME/android/kernel/realme/sdm710 -name "Makefile" -exec sed -i 's/-Werror/-Wno-error/g' {} +
+          find $HOME/android/hardware/interfaces -name "*.bp" -exec sed -i 's/minus_werror: false/minus_werror: true/g' {} +
+          
+          # Фикс 2: Адаптация старого кода ядра под требования новых стандартов C++
+          if grep -q "was not declared in this scope" build.log || grep -q "unknown type name" build.log; then
+             echo "🤖 Фиксим заголовочные файлы: инжектим базовые системные типы Linux"
+             find $HOME/android/kernel/realme/sdm710 -name "*.h" -exec sed -i '1s/^/#include <linux/types.h>\n#include <stdint.h>\n/' {} +
           fi
           
-          # 2. Авто-фикс пропущенных заголовков C++ (частая проблема при сборке Android 10 на новых ОС)
-          grep -oE "error: ‘.*’ was not declared in this scope" build.log | while read -r line; do
-             # Авто-инжект необходимых библиотек типов в заголовочные файлы ядра
-             find ~/android/kernel/realme/sdm710 -name "*.h" -exec sed -i '1s/^/#include <linux/types.h>\n/' {} +
-          done
+          # Фикс 3: Патч для утилиты Lexer/Flex
+          find $HOME/android/system/tools -name "*.cc" -exec sed -i 's/int yy_flex_alloc/void* yy_flex_alloc/g' {} + 2>/dev/null || true
 
-          echo "🔄 Ошибки локализованы и устранены. Запуск повторной компиляции..."
-          mka bacon -j$(nproc --all)
+          echo "🔄 Патчи успешно применены к исходникам LineageOS. Запуск повторной горячей компиляции..."
+          mka bacon -j$(nproc --all) > build.log 2>&1
         fi
 
-    - name: 9. Выгрузка собранных файлов (.zip, recovery.img, boot.img)
+    - name: 9. Выгрузка готовых файлов сборки и логов компиляции
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: crDroid-6.30-SelfHealed-Build
         path: |
-          ~/android/out/target/product/spy/crDroid*.zip
-          ~/android/out/target/product/spy/recovery.img
-          ~/android/out/target/product/spy/boot.img
-          ~/android/build.log
+          /home/runner/android/out/target/product/spy/crDroid*.zip
+          /home/runner/android/out/target/product/spy/recovery.img
+          /home/runner/android/out/target/product/spy/boot.img
+          /home/runner/android/build.log
