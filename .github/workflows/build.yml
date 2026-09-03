@@ -28,7 +28,8 @@ jobs:
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses5 libncurses5-dev libtinfo5 python2 patchelf
+        # Добавлена утилита aria2 для многопоточного скачивания в обход таймаутов
+        sudo apt-get install -y aria2 bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses5 libncurses5-dev libtinfo5 python2 patchelf
         
         sudo ln -sf /usr/bin/python3 /usr/bin/python
         sudo ln -sf /usr/bin/python2 /usr/bin/python2
@@ -36,7 +37,7 @@ jobs:
         git config --global user.name "AI Lowlevel Autonomous Engine"
         git config --global user.email "autonomous-core@ai-android.internal"
 
-    - name: 4.  ПОЛНОЙ кодовой базы Android 10.0.0_r75 и crDroid (Шестнадцатеричный обход)
+    - name: 4. Импорт ПОЛНОЙ кодовой базы Android 10.0.0_r75 и crDroid (16-поточный aria2c обход)
       run: |
         git config --global --unset-all url."https://github.com".insteadOf || true
         sudo git config --system --unset-all url."https://github.com".insteadOf || true
@@ -48,32 +49,32 @@ jobs:
         echo "Безопасный туннель к репозиториям инициализирован."
         
         echo "=== СКАЧИВАНИЕ БАЗЫ ОПЕРАЦИОННОЙ СИСТЕМЫ (TAG: crDroid 6.27 / Android 10) ==="
-        curl -k -L https://$GH_DOMAIN/crdroidandroid/android/archive/refs/heads/10.0.tar.gz -o crdroid.tar.gz
+        aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/crdroidandroid/android/archive/refs/heads/10.0.tar.gz -o crdroid.tar.gz
         tar -xf crdroid.tar.gz --strip-components=1 && rm -f crdroid.tar.gz
         
         echo "=== СКАЧИВАНИЕ СИСТЕМНЫХ КОМПОНЕНТОВ СБОРКИ (BUILD/MAKE) ==="
-        curl -k -L https://$GH_DOMAIN/aosp-mirror/platform_build/archive/refs/tags/android-10.0.0_r75.tar.gz -o build.tar.gz
+        aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/aosp-mirror/platform_build/archive/refs/tags/android-10.0.0_r75.tar.gz -o build.tar.gz
         mkdir -p build/make && tar -xf build.tar.gz -C build/make --strip-components=1 && rm -f build.tar.gz
         
         echo "=== ИМПОРТ АППАРАТНЫХ ИСХОДНИКОВ REALME 5 PRO И ПЛАТФОРМЫ ==="
         mkdir -p device/realme/spy device/realme/sdm710-common kernel/realme/sdm710 vendor/realme device/qcom/sepolicy hardware/interfaces
         
-        curl -k -L https://$GH_DOMAIN/LineageOS/android_device_realme_spy/archive/refs/heads/lineage-17.1.tar.gz -o spy.tar.gz
+        aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/LineageOS/android_device_realme_spy/archive/refs/heads/lineage-17.1.tar.gz -o spy.tar.gz
         tar -xf spy.tar.gz -C device/realme/spy --strip-components=1 && rm -f spy.tar.gz
         
-        curl -k -L https://$GH_DOMAIN/LineageOS/android_device_realme_sdm710-common/archive/refs/heads/lineage-17.1.tar.gz -o sdm.tar.gz
+        aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/LineageOS/android_device_realme_sdm710-common/archive/refs/heads/lineage-17.1.tar.gz -o sdm.tar.gz
         tar -xf sdm.tar.gz -C device/realme/sdm710-common --strip-components=1 && rm -f sdm.tar.gz
         
-        curl -k -L https://$GH_DOMAIN/LineageOS/android_kernel_realme_sdm710/archive/refs/heads/lineage-17.1.tar.gz -o kernel.tar.gz
+        aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/LineageOS/android_kernel_realme_sdm710/archive/refs/heads/lineage-17.1.tar.gz -o kernel.tar.gz
         tar -xf kernel.tar.gz -C kernel/realme/sdm710 --strip-components=1 && rm -f kernel.tar.gz
         
-        curl -k -L https://$GH_DOMAIN/TheMuppets/proprietary_vendor_realme/archive/refs/heads/lineage-17.1.tar.gz -o vendor.tar.gz
+        aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/TheMuppets/proprietary_vendor_realme/archive/refs/heads/lineage-17.1.tar.gz -o vendor.tar.gz
         tar -xf vendor.tar.gz -C vendor/realme --strip-components=1 && rm -f vendor.tar.gz
         
-        curl -k -L https://$GH_DOMAIN/LineageOS/android_device_qcom_sepolicy/archive/refs/heads/lineage-17.1.tar.gz -o sepolicy.tar.gz
+        aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/LineageOS/android_device_qcom_sepolicy/archive/refs/heads/lineage-17.1.tar.gz -o sepolicy.tar.gz
         tar -xf sepolicy.tar.gz -C device/qcom/sepolicy --strip-components=1 && rm -f sepolicy.tar.gz
         
-        curl -k -L https://$GH_DOMAIN/LineageOS/android_hardware_interfaces/archive/refs/heads/lineage-17.1.tar.gz -o hw.tar.gz
+        aria2c -x16 -s16 -c --check-certificate=false https://$GH_DOMAIN/LineageOS/android_hardware_interfaces/archive/refs/heads/lineage-17.1.tar.gz -o hw.tar.gz
         tar -xf hw.tar.gz -C hardware/interfaces --strip-components=1 && rm -f hw.tar.gz
 
         git init && git config user.name "AI" && git config user.email "bot@ai"
@@ -115,14 +116,14 @@ jobs:
         
         mkdir -p build
         cat << 'EOF' > build/envsetup.sh
-        #!/bin/bash
-        function lunch() {
-            export TARGET_PRODUCT=crdroid_spy
-            export TARGET_BUILD_VARIANT=userdebug
-            export OUT_DIR=out
-            echo "AI Autonomous Core: Environment variables enforced for crdroid_spy-userdebug"
-        }
-        EOF
+#!/bin/bash
+function lunch() {
+    export TARGET_PRODUCT=crdroid_spy
+    export TARGET_BUILD_VARIANT=userdebug
+    export OUT_DIR=out
+    echo "AI Autonomous Core: Environment variables enforced for crdroid_spy-userdebug"
+}
+EOF
         chmod a+x build/envsetup.sh
         touch build.log init_env.log
         
@@ -133,7 +134,6 @@ jobs:
         
         echo "🚀 ЗАПУСК АВТОНОМНОГО ИИ-ПАТЧЕРА СБОРКИ..."
         
-        # Стерильный синтаксический блок выполнения сборки AOSP
         for attempt in {1..10}; do
           echo "🧱 Проход компиляции №$attempt..."
           
@@ -190,8 +190,3 @@ jobs:
         touch recovery_zip/META-INF/com/google/android/updater-script
         cd recovery_zip && zip -r3 ../crDroid-6.30-Recovery-RMX1971.zip . * && cd ..
         rm -rf recovery_zip
-        
-        echo "=== СБОРКА И УПАКОВКА CUSTOM KERNEL ZIP ==="
-        mkdir -p kernel_zip/META-INF/com/google/android
-        cp boot.img kernel_zip/boot.img
-        echo "#!/sbin/sh" > kernel_zip/META-INF/com/google/android/update-binary
