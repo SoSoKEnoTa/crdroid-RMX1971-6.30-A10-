@@ -115,14 +115,14 @@ jobs:
         
         mkdir -p build
         cat << 'EOF' > build/envsetup.sh
-#!/bin/bash
-function lunch() {
-    export TARGET_PRODUCT=crdroid_spy
-    export TARGET_BUILD_VARIANT=userdebug
-    export OUT_DIR=out
-    echo "AI Autonomous Core: Environment variables enforced for crdroid_spy-userdebug"
-}
-EOF
+        #!/bin/bash
+        function lunch() {
+            export TARGET_PRODUCT=crdroid_spy
+            export TARGET_BUILD_VARIANT=userdebug
+            export OUT_DIR=out
+            echo "AI Autonomous Core: Environment variables enforced for crdroid_spy-userdebug"
+        }
+        EOF
         chmod a+x build/envsetup.sh
         touch build.log init_env.log
         
@@ -133,22 +133,25 @@ EOF
         
         echo "🚀 ЗАПУСК АВТОНОМНОГО ИИ-ПАТЧЕРА СБОРКИ..."
         
+        # Полностью стерильный и изолированный цикл компиляции AOSP
         for attempt in {1..10}; do
           echo "🧱 Проход компиляции №$attempt..."
           
-          if mka bacon -j$(nproc --all) > build.log 2>&1; then
+          mka bacon -j$(nproc --all) > build.log 2>&1
+          if [ $? -eq 0 ]; then
             echo "Сборка успешно завершена!"
             break
           fi
           
           if [ -f "Makefile" ]; then
-            if make bacon -j$(nproc --all) > build.log 2>&1; then
+            make bacon -j$(nproc --all) > build.log 2>&1
+            if [ $? -eq 0 ]; then
               echo "Сборка через локальный Makefile успешно завершена!"
               break
             fi
           fi
           
-          echo "⚠️ Обнаружена ошибка. ИИ анализирует build.log и генерирует низкоуровневый патч..."
+          echo "⚠️ Обнаружена ошибка. Автоматический патчинг исходников..."
           find . -name "*.mk" -o -name "Makefile" | xargs sed -i 's/-Werror/-Wno-error/g' 2>/dev/null || true
           find . -name "*.bp" | xargs sed -i 's/minus_werror: false/minus_werror: true/g' 2>/dev/null || true
           
@@ -169,10 +172,10 @@ EOF
           if grep -q "error: read-only variable" build.log; then
              find kernel/ -name "*.c" -exec sed -i 's/volatile string/string/g' {} + 2>/dev/null || true
           fi
-          echo "🔄 Патчи применены автоматически. Перезапуск компиляции..."
+          echo "🔄 Патчи применены. Перезапуск компиляции..."
         done
 
-    - name: 7. Сборка и сочная упаковка рекавери и ядра в независимые Flash-пакеты ZIP
+    - name: 7. Сборка and сочная упаковка рекавери и ядра в независимые Flash-пакеты ZIP
       run: |
         TARGET_DIR="$HOME/android/out/target/product/spy"
         mkdir -p $TARGET_DIR
@@ -187,7 +190,3 @@ EOF
         echo "ui_print \"Installing crDroid 6.30 TWRP Recovery...\"" >> recovery_zip/META-INF/com/google/android/update-binary
         echo "dd if=/tmp/recovery.img of=/dev/block/by-name/recovery" >> recovery_zip/META-INF/com/google/android/update-binary
         touch recovery_zip/META-INF/com/google/android/updater-script
-        cd recovery_zip && zip -r3 ../crDroid-6.30-Recovery-RMX1971.zip . * && cd ..
-        rm -rf recovery_zip
-        
-        echo "=== СБОРКА И УПАКОВКА CUSTOM KERNEL ZIP ==="
