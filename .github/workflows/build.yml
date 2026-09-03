@@ -5,10 +5,10 @@ on:
 
 jobs:
   compile:
-    runs-on: ubuntu-24.04 # Переключено на новейшую версию Ubuntu LTS
+    runs-on: ubuntu-24.04 # Работаем на новой Ubuntu 24.04
     steps:
     - name: Checkout Репозитория
-      uses: actions/checkout@v4 # Обновлено до актуальной версии экшена
+      uses: actions/checkout@v4
 
     - name: Очистка дискового пространства виртуальной машины
       run: |
@@ -16,13 +16,24 @@ jobs:
         sudo apt-get clean
         df -h
 
-    - name: Настройка совместимости Ubuntu 24.04 со старыми зависимостями AOSP
+    - name: Настройка зависимостей и обход ограничений Ubuntu 24.04
       run: |
         sudo apt-get update
-        # Устанавливаем базовые инструменты, доступные в репозиториях 24.04
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3-is-python3 libncurses5
         
-        # Для Android 10 необходим старый Python для некоторых скриптов сборки
+        # Устанавливаем современные аналоги доступных пакетов
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 python3-is-python libncurses6 libncurses-dev
+        
+        # Принудительная установка libncurses5 и libtinfo5 из официального архива Ubuntu
+        wget http://launchpadlibrarian.net/666953488/libtinfo5_6.2-0ubuntu2.1_amd64.deb
+        wget http://launchpadlibrarian.net/666953484/libncurses5_6.2-0ubuntu2.1_amd64.deb
+        sudo dpkg -i libtinfo5_6.2-0ubuntu2.1_amd64.deb
+        sudo dpkg -i libncurses5_6.2-0ubuntu2.1_amd64.deb
+        rm -f *.deb
+
+        # Фикс для старых скриптов Android 10, которые требуют вызова по команде 'python'
+        sudo ln -sf /usr/bin/python3 /usr/bin/python
+        
+        # Попытка установить python2 для обратной совместимости (если потребуется компилятору)
         sudo apt-get install -y python2 || true
 
     - name: Настройка утилиты Google Repo
@@ -104,7 +115,7 @@ jobs:
         mka bacon -j$(nproc --all)
 
     - name: Выгрузка готовых файлов сборки (.zip прошивка и .img ядра/рекавери)
-      uses: actions/upload-artifact@v4 # Обновлено до версии v4, совместимой с ubuntu-24.04
+      uses: actions/upload-artifact@v4
       with:
         name: crDroid-6.30-RMX1971-Vanilla-Build
         path: |
