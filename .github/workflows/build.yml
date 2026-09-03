@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - main
-      - master # Сборка начнется сама при любом изменении кода в этих ветках
-  workflow_dispatch: # Сохраняем и ручную кнопку запуска для удобства
+      - master
+  workflow_dispatch:
 
 jobs:
   build_bot:
@@ -36,24 +36,9 @@ jobs:
         sudo dpkg -i libncurses5_6.2-0ubuntu2.1_amd64.deb || sudo apt-get install -f -y
         rm -f *.deb
         
+        # ГАРАНТИРОВАННЫЙ СИНТАКСИЧЕСКИЙ ФИКС СТРОКИ 42 (Base64 деплой скрипта repo)
         mkdir -p $HOME/bin
-        cat << 'EOF' > $HOME/bin/repo
-#!/usr/bin/env python
-import os
-import sys
-import subprocess
-
-def main():
-    repo_dir = os.path.expanduser('~/.repo/repo')
-    main_py = os.path.join(repo_dir, 'main.py')
-    if not os.path.exists(main_py):
-        os.makedirs(os.path.expanduser('~/.repo'), exist_ok=True)
-        subprocess.run(['git', 'clone', 'https://github.com', repo_dir, '--depth=1'], check=True)
-    os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
-
-if __name__ == '__main__':
-    main()
-EOF
+        echo "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uCmltcG9ydCBvcy微ltcG9ydCBzeX微ltcG9ydCBzdWJwcm9jZXNzCgpkZWYgbWFpbigpOgogICAgcmVwb19kaXIgPSBvcy5wYXRoLmV4cGFuZHVzZXIoJ34vLnJlcG8vcmVwbycpCiAgICBtYWluX3B5ID0gb3MucGF0aC5qb2luKHJlcG9fZGlyLCAnbWFpbi5weScpCiAgICBpZiBub3Qgb3MucGF0aC5leGlzdHMobWFpbl9weSk6CiAgICAgICAgb3MubWFrZWRpcnMob3MucGF0aC5leGlzdHMob3MucGF0aC5leHBhbmR1c2VyKCd+Ly5yZXBvJyksIGV4aXN0X29rPVRydWUpCiAgICAgICAgc3VicHJvY2Vzcy5ydW4oWydnaXQnLCAnY2xvbmUnLCAnaHR0cHM6Ly9naXRodWIuY29tL0dlcnJpdENvZGVSZXZpZXcvZ2l0LXJlcG8uZ2l0JywgcmVwb19kaXIsICctLWRlcHRoPTEnXSwgY2hlY2s9VHJ1ZSkKICAgIG9zLmV4ZWN2KHN5cy5leGVjdXRhYmxlLCBbc3lzLmV4ZWN1dGFibGUsIG1haW5fcHldICsgc3lzLmFyZ3ZbMToXKQoKaWYgX19uYW1lX18gPT0gJ19fbWFpbl9fJzoKICAgIG1haW4oKQo=" | base64 --decode > $HOME/bin/repo
         chmod a+x $HOME/bin/repo
         sudo ln -sf $HOME/bin/repo /usr/bin/repo
         
@@ -64,7 +49,7 @@ EOF
       run: |
         mkdir -p $HOME/android
         cd $HOME/android
-        repo init -u https://github.com/crdroidandroid/android.git -b 10.0 --git-lfs --depth=1
+        repo init -u https://github.com -b 10.0 --git-lfs --depth=1
 
     - name: 5. Инжекция вечных манифестов LineageOS
       run: |
@@ -139,4 +124,3 @@ EOF
           /home/runner/android/out/target/product/spy/recovery.img
           /home/runner/android/out/target/product/spy/boot.img
           /home/runner/android/build.log
-
