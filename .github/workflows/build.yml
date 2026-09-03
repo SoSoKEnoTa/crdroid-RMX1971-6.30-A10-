@@ -21,7 +21,7 @@ jobs:
         sudo apt-get install -y gcc-9 g++-9 gcc-9-multilib g++-9-multilib
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 90 --slave /usr/bin/g++ g++ /usr/bin/g++-9
         
-        # ПРЯМАЯ ИСПРАВЛЕННАЯ ССЫЛКА: Установка оригинальной библиотеки libssl1.1 из официального зеркала Ubuntu Security
+        # Установка оригинальной библиотеки libssl1.1 из официального зеркала Ubuntu Security
         wget http://ubuntu.com || wget http://ubuntu.com
         sudo dpkg -i libssl1.1_*.deb || true
         
@@ -62,8 +62,10 @@ jobs:
         # Создаем структуру каталогов, если repo sync пропустил базовые манифесты
         mkdir -p build/make/core vendor/crdroid device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 out/target/product/RMX1971
         
+        # УМНАЯ ПРОВЕРКА: Разворачиваем конвейер, только если папка build/make реально пуста
         if [ ! -f "build/make/core/envsetup.mk" ]; then
           echo "=== Развертывание аварийного сборочного конвейера ==="
+          rm -rf build/make
           git clone --depth=1 https://github.com -b android-10.0.0 build/make
           cp build/make/envsetup.sh ./ 2>/dev/null || true
         fi
