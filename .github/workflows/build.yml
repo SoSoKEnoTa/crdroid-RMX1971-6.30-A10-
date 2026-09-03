@@ -7,9 +7,7 @@ jobs:
   compile_firmware_rmx1971:
     runs-on: ubuntu-22.04
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
+    # МЫ ПОЛНОСТЬЮ УДАЛИЛИ ПЛАГИН CHECKOUT, ЧТОБЫ ГИТХАБ НЕ ИНЖЕКТИРОВАЛ СВОИ КРИВЫЕ ТОКЕНЫ
     - name: Clean disk space
       run: |
         sudo rm -rf /usr/share/dotnet
@@ -41,30 +39,36 @@ jobs:
       run: |
         export PATH=$HOME/bin:$PATH
         
-        # ГЛАВНЫЙ ХАК: Запрещаем GitHub Actions принудительно перезаписывать HTTPS ссылки токенами
-        git config --global --unset parallel.autofetch || true
-        git config --global --unset-all http.https://github.com || true
+        # ТОТАЛЬНАЯ ЖЕСТКАЯ ЗАЧИСТКА ВСЕХ КОНФИГОВ И ЛОКАЛЬНЫХ ПАПОК
+        rm -rf .git .gitattributes .github
+        rm -f ~/.gitconfig
         
         git config --global user.name "AI-LowLevel-Developer"
         git config --global user.email "developer@ai-core.internal"
         
+        # Полностью глушим любые локальные extraheaders на уровне текущей сессии bash
+        git config --global --unset-all http.https://github.com/.extraheader || true
+        
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Скачиваем чистую базу LineageOS 17.1 (Android 10)
+        # Инициализируем и скачиваем чистую базу LineageOS 17.1 (Android 10)
         repo init --depth=1 -u https://github.com -b lineage-17.1
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Полностью удаляем папки перед ручным клонированием
+        # Выжигаем кэш repo, чтобы он не мешал чистому git clone
+        rm -rf .repo
+        
+        # Полностью очищаем целевые директории
         rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
         
-        # Скачиваем рабочие исходники по чистому HTTPS без скрытых подмен
+        # КЛОНИРУЕМ НАПРЯМУЮ В АБСОЛЮТНО ЧИСТОЙ СРЕДЕ, ГДЕ У ГИТА НЕТ ЛОКАЛЬНЫХ ПРАВИЛ
         git clone --depth=1 https://github.com -b q device/realme/RMX1971
         git clone --depth=1 https://github.com -b q kernel/realme/sdm710
         git clone --depth=1 https://github.com -b q vendor/realme/RMX1971
         
-        # Скачиваем кастомизацию crDroid
+        # Накатываем вендор кастомизации crDroid
         git clone --depth=1 https://github.com -b 10.0 vendor/crdroid
         
         cd vendor/crdroid && git checkout tags/6.27 || git checkout $(git log --all --grep="6.27" -n 1 --format="%H") || true
