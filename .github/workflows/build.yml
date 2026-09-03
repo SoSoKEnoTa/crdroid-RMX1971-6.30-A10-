@@ -39,7 +39,7 @@ jobs:
       run: |
         export PATH=$HOME/bin:$PATH
         
-        # ТОТАЛЬНЫЙ СБРОС ЛОКАЛЬНЫХ СЕТЕВЫХ ХУКОВ И ТОКЕНОВ GIT РАННЕРА
+        # Сброс локального кэша Git
         rm -f ~/.gitconfig
         git config --global user.name "SelfHealing-Bot"
         git config --global user.email "bot@ai-core.internal"
@@ -49,24 +49,25 @@ jobs:
         mkdir -p ~/crdroid_workspace && cd ~/crdroid_workspace
         
         echo "=== Синхронизация стабильной платформы Android 10 через REPO ==="
-        # Инициализируем вечное зеркало AOSP-Legacy, защищенное от удаления
         repo init --depth=1 -u https://github.com -b android-10.0.0
         
-        # Жёстко глушим любые скрытые скрипты автоматического поиска устройств
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
         rm -rf .repo/local_manifests
         
-        # Безопасное скачивание базовой ОС со 100% стабильностью
+        # Синхронизируем базовую ОС
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Создаем структуру каталогов, если repo sync пропустил базовые манифесты
+        # Создаем целевую структуру папок
         mkdir -p build/make/core vendor/crdroid device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 out/target/product/RMX1971
         
-        # УМНАЯ ПРОВЕРКА: Разворачиваем конвейер, только если папка build/make реально пуста
+        # УЛЬТИМАТИВНЫЙ ХАК: Если папка сборщика пуста, качаем build/make через CURL в виде ZIP-архива в обход Git!
         if [ ! -f "build/make/core/envsetup.mk" ]; then
-          echo "=== Развертывание аварийного сборочного конвейера ==="
+          echo "=== Развертывание аварийного сборочного конвейера через CURL ==="
           rm -rf build/make
-          git clone --depth=1 https://github.com -b android-10.0.0 build/make
+          curl -f -L https://github.com -o platform_build.zip
+          unzip -q platform_build.zip
+          mv platform_build-android-10.0.0 build/make
+          rm -f platform_build.zip
           cp build/make/envsetup.sh ./ 2>/dev/null || true
         fi
         
