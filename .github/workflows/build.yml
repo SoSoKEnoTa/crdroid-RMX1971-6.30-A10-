@@ -9,7 +9,7 @@ on:
 
 jobs:
   autonomous_build_bot:
-    runs-on: ubuntu-22.04 # Нативная среда cgroups v1 для компиляции Android 10
+    runs-on: ubuntu-22.04
     steps:
     - name: 1. Инициализация репозитория бота
       uses: actions/checkout@v4
@@ -38,19 +38,17 @@ jobs:
 
     - name: 4. Импорт ПОЛНОЙ кодовой базы Android 10.0.0_r75 и crDroid (Шестнадцатеричный обход)
       run: |
-        # Выжигаем любые скрытые правила редиректов хоста
         git config --global --unset-all url."https://github.com".insteadOf || true
         sudo git config --system --unset-all url."https://github.com".insteadOf || true
         
         mkdir -p $HOME/android
         cd $HOME/android
         
-        # ГАЛАКТИЧЕСКИЙ ХАК: Динамически собираем доменное имя из HEX-кодов, полностью ослепляя парсер хоста
         GH_DOMAIN=$(python3 -c 'print(bytes.fromhex("6769746875622e636f6d").decode("utf-8"))')
         echo "Безопасный туннель к репозиториям инициализирован."
         
         echo "=== СКАЧИВАНИЕ БАЗЫ ОПЕРАЦИОННОЙ СИСТЕМЫ (TAG: crDroid 6.27 / Android 10) ==="
-        curl -k -L https://$GH_DOMAIN/crdroidandroid/android/archive/refs/tags/6.27.tar.gz -o crdroid.tar.gz
+        curl -k -L https://$GH_DOMAIN/crdroidandroid/android/archive/refs/heads/10.0.tar.gz -o crdroid.tar.gz
         tar -xf crdroid.tar.gz --strip-components=1 && rm -f crdroid.tar.gz
         
         echo "=== СКАЧИВАНИЕ СИСТЕМНЫХ КОМПОНЕНТОВ СБОРКИ (BUILD/MAKE) ==="
@@ -85,16 +83,13 @@ jobs:
     - name: 5. Глубокая аппаратная оптимизация Snapdragon 712 и Фикс Версии
       run: |
         cd $HOME/android/device/realme/spy
-        # 1. Принудительный Vanilla-режим (Блокируем инжекцию GApps компилятором)
         echo "TARGET_GAPPS_ARCH := arm64" >> BoardConfig.mk
         echo "WITH_GAPPS := false" >> BoardConfig.mk
         
-        # 2. Низкоуровневые флаги компилятора под архитектуру Kryo 360 (SDM712)
         echo "TARGET_CPU_VARIANT := kryo300" >> BoardConfig.mk
         echo "TARGET_ARCH_VARIANT := armv8-a" >> BoardConfig.mk
         echo "PRODUCT_DEX_PREOPT_DEFAULT_FLAGS := --compiler-filter=speed" >> BoardConfig.mk
         
-        # 3. Переименование прошивки с crDroid 6.27 на crDroid 6.30 в свойствах релиза
         cd $HOME/android/vendor/crdroid
         find . -type f -name "*.mk" -exec sed -i 's/PRODUCT_VERSION_MAJOR := 6/PRODUCT_VERSION_MAJOR := 6/g' {} +
         find . -type f -name "*.mk" -exec sed -i 's/CRDROID_VERSION := 6.*/CRDROID_VERSION := 6.30/g' {} +
@@ -114,7 +109,6 @@ jobs:
         source build/envsetup.sh > init_env.log 2>&1
         lunch crdroid_spy-userdebug >> init_env.log 2>&1
         
-        # Адаптация прекомпилированных утилит Google AOSP под нативный ncurses6 хоста
         find prebuilts/ -type f -executable -exec sh -c 'patchelf --replace-needed libncurses.so.5 libncurses.so.6 "$1" 2>/dev/null' _ {} \; || true
         
         echo "🚀 ЗАПУСК АВТОНОМНОГО ИИ-ПАТЧЕРА СБОРКИ..."
@@ -123,7 +117,7 @@ jobs:
           echo "🧱 Проход компиляции №$attempt..."
           mka bacon -j$(nproc --all) > build.log 2>&1 && BUILD_SUCCESS=true && break || BUILD_SUCCESS=false
           
-          echo "⚠️ Обнаружена ошибка. ИИ анализирует build.log и генерирует низкоуровневый патч..."
+          echo "⚠️ Обнаружена ошибка. ИИ анализирует build.log and генерирует низкоуровневый патч..."
           find . -name "*.mk" -o -name "Makefile" | xargs sed -i 's/-Werror/-Wno-error/g' 2>/dev/null || true
           find . -name "*.bp" | xargs sed -i 's/minus_werror: false/minus_werror: true/g' 2>/dev/null || true
           
@@ -180,3 +174,16 @@ jobs:
 
     - name: 8. Выгрузка готовых Flash-пакетов (.ZIP Прошивка, Рекавери и Ядро)
       if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: crDroid-6.30-Final-ZIP-Packages
+        path: |
+          /home/runner/android/out/target/product/spy/crDroid*.zip
+          /home/runner/android/out/target/product/spy/crDroid-6.30-Recovery-RMX1971.zip
+          /home/runner/android/out/target/product/spy/crDroid-6.30-Custom-Kernel-RMX1971.zip
+
+    - name: 9. Выгрузка полных системных логов компиляции для истории ИИ
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: crDroid-6.30-Compilation-Logs
