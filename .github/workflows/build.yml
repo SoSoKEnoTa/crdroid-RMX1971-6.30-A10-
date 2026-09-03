@@ -26,7 +26,6 @@ jobs:
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
-        # Устанавливаем официальный системный пакет repo из репозиториев Ubuntu (Исключает баг строки 48)
         sudo apt-get install -y repo bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev patchelf
         
         # Системные линки Python3
@@ -49,8 +48,9 @@ jobs:
       run: |
         mkdir -p $HOME/android
         cd $HOME/android
-        # Используем стабильную предустановленную системную команду repo
-        repo init -u https://github.com -b 10.0 --git-lfs --depth=1
+        # ГАРАНТИРОВАННЫЙ ФИКС: Запрещаем утилите repo искать обновления в сети во время инициализации
+        export REPO_SKIP_BOOTSTRAP=1
+        repo init -u https://github.com -b 10.0 --git-lfs --depth=1 --no-repo-verify
 
     - name: 5. Инжекция вечных манифестов LineageOS
       run: |
@@ -71,6 +71,7 @@ jobs:
     - name: 6. Синхронизация кода (Умный перезапуск при сбоях сети)
       run: |
         cd $HOME/android
+        export REPO_SKIP_BOOTSTRAP=1
         for i in {1..5}; do repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags && break || sleep 20; done
 
     - name: 7. Пре-компиляционные фиксы (Vanilla, Оптимизация под SDM712 и Верификация версии)
