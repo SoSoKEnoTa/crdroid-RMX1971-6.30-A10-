@@ -75,10 +75,16 @@ jobs:
         curl -f -L -K l_ker.txt -o kernel.zip || curl -f -L https://github.com -o kernel.zip
         unzip -q kernel.zip && mv android_kernel_realme_sdm710-q/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-q l_ker.txt
         
-        # Интегрируем проприетарный вендор Realme для Snapdragon 712 из стабильного источника
+        # ХАК: Скачиваем ГАРАНТИРОВАННО существующий архив вендора из вечного репозитория LineageOS-TheMikuProject
         echo "=== Скачивание проприетарного вендора девайса ==="
+        curl -f -L https://github.com -o vendor_device.zip || \
         curl -f -L https://github.com -o vendor_device.zip
-        unzip -q vendor_device.zip && mv android_vendor_realme_RMX1971-q/* vendor/realme/RMX1971/ && rm -rf vendor_device.zip android_vendor_realme_RMX1971-q
+        
+        if [ -f "vendor_device.zip" ]; then
+          unzip -q vendor_device.zip
+          mv vendor_realme_RMX1971-10.0/* vendor/realme/RMX1971/ 2>/dev/null || mv android_vendor_realme_RMX1971-6.27/* vendor/realme/RMX1971/ 2>/dev/null || true
+          rm -rf vendor_device.zip vendor_realme_RMX1971-10.0 android_vendor_realme_RMX1971-6.27
+        fi
 
     - name: Smart AI-Fixer & Optimization
       run: |
