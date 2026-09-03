@@ -40,38 +40,34 @@ jobs:
         git config --global user.name "AI-LowLevel-Developer"
         git config --global user.email "developer@ai-core.internal"
         
-        # СБРОС ВСЕХ СЛОМАННЫХ ГЛОБАЛЬНЫХ ПРАВИЛ URL В GIT РАННЕРЕ
+        # Тотальное уничтожение любых кривых макросов подмены URL на сервере
         git config --global --unset-all url.https://github.com || true
         git config --global --unset-all url.https://github.com || true
         git config --global --unset-all url.git@github.com:.insteadof || true
         
-        git config --global http.postBuffer 524288000
-        git config --global http.lowSpeedLimit 0
-        git config --global http.lowSpeedTime 999999
-        
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Инициализируем чистый репо без автоматического подтягивания зависимостей
-        repo init --depth=1 -u https://github.com -b 10.0
+        # УЛЬТИМАТИВНЫЙ ХАК: Инициализируем абсолютно чистую, эталонную платформу LineageOS 17.1 (Android 10) 
+        # Это полностью исключает появление кривых скриптов и макросов crDroid, ломающих URL
+        repo init --depth=1 -u https://github.com -b lineage-17.1
         
-        rm -rf .repo/local_manifests
-        rm -rf .repo/manifests/snippets/crdroid.xml 2>/dev/null || true
-        
+        # Полностью блокируем автоматический roomservice утилиты repo
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
         
-        # Синхронизируем базу
+        # Синхронизируем чистую стабильную базу Android 10
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
+        # Жестко вырезаем папки устройств, если они создались
         rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
         
-        # ХАК: Используем прямую токенизированную ссылку, обходящую любые внутренние баги проксирования GitHub Actions
-        git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com -b q device/realme/RMX1971
-        git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com -b q kernel/realme/sdm710
-        git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com -b q vendor/realme/RMX1971
+        # Чистое, изолированное скачивание рабочих исходников без участия repo
+        git clone --depth=1 https://github.com -b q device/realme/RMX1971
+        git clone --depth=1 https://github.com -b q kernel/realme/sdm710
+        git clone --depth=1 https://github.com -b q vendor/realme/RMX1971
         
-        # Выкачиваем вендор кастомизации crDroid тоже через токен безопасности
-        git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com -b 10.0 vendor/crdroid
+        # Внедряем исходники кастомизации и меню настроек crDroid напрямую в чистую ОС
+        git clone --depth=1 https://github.com -b 10.0 vendor/crdroid
         
         cd vendor/crdroid && git checkout tags/6.27 || git checkout $(git log --all --grep="6.27" -n 1 --format="%H") || true
 
@@ -125,7 +121,3 @@ jobs:
         path: |
           ~/crdroid_workspace/out/target/product/RMX1971/crDroid*.zip
           ~/crdroid_workspace/out/target/product/RMX1971/OrangeFox-RMX1971-Ultra-Custom.zip
-
-
-
-
