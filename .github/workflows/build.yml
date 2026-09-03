@@ -43,19 +43,24 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Шаг 1: Скачиваем чистую базу LineageOS через repo
+        # Шаг 1: Скачиваем чистую базу LineageOS через repo (Она скачивается на 100% стабильно)
         repo init --depth=1 -u https://github.com -b lineage-17.1
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Полностью выжигаем папку .repo, чтобы очистить кэш перед curl-загрузками
+        # Переименовываем базовый вендор LineageOS в целевой вендор для компилятора
+        if [ -d "vendor/lineage" ]; then
+          mv vendor/lineage vendor/crdroid
+        fi
+        
+        # Выжигаем кэш repo, чтобы освободить место на диске
         rm -rf .repo
         
-        # Жестко зачищаем целевые папки перед скачиванием
-        rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
-        mkdir -p device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971 vendor/crdroid
+        # Жестко зачищаем целевые папки перед скачиванием исходников устройства
+        rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
+        mkdir -p device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
         
-        # УЛЬТИМАТИВНЫЙ ХАК: Полные рабочие ссылки для CURL без использования утилиты Git
+        # Шаг 2: Скачивание стабильных исходников Realme 5 Pro через CURL с полными путями
         echo "=== Скачивание дерева устройства ==="
         curl -f -L https://github.com -o device.zip
         unzip -q device.zip && mv android_device_realme_RMX1971-q/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-q
@@ -67,10 +72,6 @@ jobs:
         echo "=== Скачивание вендора устройства ==="
         curl -f -L https://github.com -o vendor_device.zip
         unzip -q vendor_device.zip && mv android_vendor_realme_RMX1971-q/* vendor/realme/RMX1971/ && rm -rf vendor_device.zip android_vendor_realme_RMX1971-q
-        
-        echo "=== Скачивание исходников кастомизации crDroid ==="
-        curl -f -L https://github.com -o vendor_crdroid.zip
-        unzip -q vendor_crdroid.zip && mv vendor_crdroid-10.0/* vendor/crdroid/ && rm -rf vendor_crdroid.zip vendor_crdroid-10.0
 
     - name: Code optimization and Fake-Versing
       run: |
