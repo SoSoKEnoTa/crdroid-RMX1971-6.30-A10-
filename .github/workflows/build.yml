@@ -1,7 +1,11 @@
 name: Android AI Self-Healing Core (crDroid 6.30 - RMX1971)
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master # Сборка начнется сама при любом изменении кода в этих ветках
+  workflow_dispatch: # Сохраняем и ручную кнопку запуска для удобства
 
 jobs:
   build_bot:
@@ -18,24 +22,20 @@ jobs:
 
     - name: 3. Развертывание и адаптация низкоуровневого окружения
       run: |
-        # Принудительно прописываем рабочие DNS на случай сетевого сбоя на стороне GitHub
         sudo chmod 777 /etc/resolv.conf
         echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
         
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev liblz4-tool libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 libncurses6 libncurses-dev wget
         
-        # Надежное создание ссылки на Python 3
         sudo ln -sf /usr/bin/python3 /usr/bin/python
         
-        # Бэкпорт библиотек ncurses/tinfo для Ubuntu 24.04 (с тремя зеркалами при ошибке сети)
         wget http://launchpadlibrarian.net || wget http://ubuntu.com
         wget http://launchpadlibrarian.net || wget http://ubuntu.com
         sudo dpkg -i libtinfo5_6.2-0ubuntu2.1_amd64.deb || sudo apt-get install -f -y
         sudo dpkg -i libncurses5_6.2-0ubuntu2.1_amd64.deb || sudo apt-get install -f -y
         rm -f *.deb
         
-        # СЕТЕВОЙ ФИКС: Вместо скачивания repo через curl, генерируем пусковой Python-скрипт локально
         mkdir -p $HOME/bin
         cat << 'EOF' > $HOME/bin/repo
 #!/usr/bin/env python
@@ -44,15 +44,11 @@ import sys
 import subprocess
 
 def main():
-    # Родовая обертка для инициализации и запуска встроенного модуля repo от Google
     repo_dir = os.path.expanduser('~/.repo/repo')
     main_py = os.path.join(repo_dir, 'main.py')
-    
     if not os.path.exists(main_py):
-        # Если локального репозитория repo еще нет, качаем его стандартным git клоном, защищенным от DNS-сбоев
         os.makedirs(os.path.expanduser('~/.repo'), exist_ok=True)
         subprocess.run(['git', 'clone', 'https://github.com', repo_dir, '--depth=1'], check=True)
-        
     os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
 
 if __name__ == '__main__':
@@ -68,7 +64,7 @@ EOF
       run: |
         mkdir -p $HOME/android
         cd $HOME/android
-        repo init -u https://github.com -b 10.0 --git-lfs --depth=1
+        repo init -u https://github.com/crdroidandroid/android.git -b 10.0 --git-lfs --depth=1
 
     - name: 5. Инжекция вечных манифестов LineageOS
       run: |
@@ -118,18 +114,15 @@ EOF
         if [ "$BUILD_FAILED" = true ]; then
           echo "⚠️ Обнаружен критический баг компиляции. Робот применяет комплексные низкоуровневые фиксы..."
           
-          # Отключение строгих варнингов компилятора
           find $HOME/android/device/realme/spy -name "*.mk" -exec sed -i 's/-Werror/-Wno-error/g' {} +
           find $HOME/android/kernel/realme/sdm710 -name "Makefile" -exec sed -i 's/-Werror/-Wno-error/g' {} +
           find $HOME/android/hardware/interfaces -name "*.bp" -exec sed -i 's/minus_werror: false/minus_werror: true/g' {} +
           
-          # Фикс типов данных под новые стандарты
           if grep -q "was not declared in this scope" build.log || grep -q "unknown type name" build.log; then
              echo "🤖 Фиксим заголовочные файлы: инжектим базовые системные типы Linux"
              find $HOME/android/kernel/realme/sdm710 -name "*.h" -exec sed -i '1s/^/#include <linux/types.h>\n#include <stdint.h>\n/' {} +
           fi
           
-          # Фикс генератора кода Lexer/Flex
           find $HOME/android/system/tools -name "*.cc" -exec sed -i 's/int yy_flex_alloc/void* yy_flex_alloc/g' {} + 2>/dev/null || true
 
           echo "🔄 Патчи успешно применены к исходникам LineageOS. Запуск повторной горячей компиляции..."
@@ -146,3 +139,4 @@ EOF
           /home/runner/android/out/target/product/spy/recovery.img
           /home/runner/android/out/target/product/spy/boot.img
           /home/runner/android/build.log
+
