@@ -52,7 +52,6 @@ jobs:
         tar -xf crdroid.tar.gz --strip-components=1 && rm -f crdroid.tar.gz
         
         echo "=== СКАЧИВАНИЕ АППАРАТНЫХ ИСХОДНИКОВ REALME 5 PRO ЧЕРЕЗ АВТОРИЗОВАННЫЙ КЛОН ==="
-        # Инжектим токен GitHub Actions для сквозного прохождения проверок безопасности хоста
         git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com".insteadOf "https://github.com"
         
         git clone https://$GH_DOMAIN/LineageOS/android_device_realme_spy.git --branch lineage-17.1 --depth=1 device/realme/spy
@@ -199,3 +198,5 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
+        name: crDroid-6.30-Compilation-Logs
+        path: /home/runner/android/build.log
