@@ -43,36 +43,61 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # СТРАТЕГИЧЕСКИЙ МАНЕВР: Скачиваем исправленную и гарантированно точную ссылку на движок сборки LineageOS 17.1 (Android 10)
+        # Загрузка сборочного конвейера Android 10
         echo "=== Загрузка сборочного конвейера Android 10 ==="
         URL_BUILD=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkX2J1aWxkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemlw" | base64 --decode)
         curl -f -L "$URL_BUILD" -o android_build.zip
         unzip -q android_build.zip && mkdir -p build && mv android_build-lineage-17.1/* build/ && rm -rf android_build.zip android_build-lineage-17.1
         
         echo "=== Развертывание корневых утилит ==="
-        URL_ROOT=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemlw" | base64 --decode)
+        URL_ROOT=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkX2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemlw" | base64 --decode)
         curl -f -L "$URL_ROOT" -o root_build.zip
         unzip -q root_build.zip && mv android-lineage-17.1/* ./ 2>/dev/null || true && rm -rf root_build.zip android-lineage-17.1
         
-        # Создаем аварийный envsetup.sh, если основной репозиторий не перенес его в корень
         if [ ! -f "envsetup.sh" ] && [ -f "build/envsetup.sh" ]; then
           cp build/envsetup.sh ./
         fi
         
-        # Подготовка структуры папок под компилятор прошивки
         mkdir -p vendor/crdroid
         mkdir -p device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
         
-        # Скачивание стабильных исходников Realme 5 Pro напрямую из Base64 потока
+        # УЛЬТИМАТИВНЫЙ АВТОПОДБОР ВЕТОК ДЛЯ ДЕРЕВА УСТРОЙСТВА
         echo "=== Скачивание дерева устройства ==="
-        URL_DEV=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2RldmljZV9yZWFsbWVfUk1YMTk3MS9hcmNoaXZlL3JlZnMvaGVhZHMvcS56aXA=" | base64 --decode)
-        curl -f -L "$URL_DEV" -o device.zip
-        unzip -q device.zip && mv android_device_realme_RMX1971-q/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-q
+        SUCCESS_DEV=0
+        for branch in q ten android-10 lineage-17.1 master main; do
+          echo "Пробуем ветку устройства: $branch"
+          if curl -f -L "https://github.com{branch}.zip" -o device.zip 2>/dev/null; then
+            unzip -q device.zip && mv android_device_realme_RMX1971-${branch}/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-${branch}
+            echo "УСПЕХ! Дерево устройства скачано из ветки: $branch"
+            SUCCESS_DEV=1
+            break
+          fi
+        done
         
+        if [ $SUCCESS_DEV -eq 0 ]; then
+          echo "Критическая ошибка: ни одна ветка устройства не найдена на HyperTeam. Пробуем резервного автора..."
+          curl -f -L "https://github.com" -o device.zip
+          unzip -q device.zip && mv android_device_realme_RMX1971-10.0/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-10.0
+        fi
+        
+        # УЛЬТИМАТИВНЫЙ АВТОПОДБОР ВЕТОК ДЛЯ ЯДРА
         echo "=== Скачивание исходников ядра ==="
-        URL_KER=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2tlcm5lbF9yZWFsbWVfc2RtNzEwL2FyY2hpdmUvcmVmcy9oZWFkcy9xLnppcA==" | base64 --decode)
-        curl -f -L "$URL_KER" -o kernel.zip
-        unzip -q kernel.zip && mv android_kernel_realme_sdm710-q/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-q
+        SUCCESS_KER=0
+        for branch in q ten android-10 lineage-17.1 master main10 10.0; do
+          echo "Пробуем ветку ядра: $branch"
+          if curl -f -L "https://github.com{branch}.zip" -o kernel.zip 2>/dev/null; then
+            unzip -q kernel.zip && mv android_kernel_realme_sdm710-${branch}/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-${branch}
+            echo "УСПЕХ! Исходники ядра скачаны из ветки: $branch"
+            SUCCESS_KER=1
+            break
+          fi
+        done
+        
+        if [ $SUCCESS_KER -eq 0 ]; then
+          echo "Резервное скачивание ядра от crdroidandroid..."
+          curl -f -L "https://github.com" -o kernel.zip
+          unzip -q kernel.zip && mv android_kernel_realme_sdm710-10.0/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-10.0
+        fi
         
         # Создание аппаратной заглушки вендора устройства
         echo "PRODUCT_COPY_FILES += " > vendor/realme/RMX1971/RMX1971-vendor.mk
@@ -81,19 +106,16 @@ jobs:
       run: |
         cd ~/crdroid_workspace
         
-        # Безопасный ребрендинг версии прошивки с проверкой существования файлов
         if [ -f vendor/crdroid/config/common.mk ]; then
           sed -i 's/CRDROID_VERSION := 6.27/CRDROID_VERSION := 6.30/g' vendor/crdroid/config/common.mk
         fi
         
-        # Безопасное удаление тяжелого стокового софта (проверяем все возможные пути в Android 10)
         for mk_file in build/make/target/product/handheld_product.mk build/make/target/product/core_tiny.mk build/make/target/product/main.mk; do
           if [ -f "$mk_file" ]; then
             sed -i '/Calendar/d; /Email/d; /Gallery2/d; /Music/d' "$mk_file"
           fi
         done
         
-        # Внедрение низкоуровневых флагов оптимизации в BoardConfig устройства
         if [ -f device/realme/RMX1971/BoardConfig.mk ]; then
           echo "TARGET_CPU_ABI := arm64-v8a" >> device/realme/RMX1971/BoardConfig.mk
           echo "TARGET_USES_O3 := true" >> device/realme/RMX1971/BoardConfig.mk
@@ -113,17 +135,13 @@ jobs:
         export PATH=$HOME/bin:$PATH
         cd ~/crdroid_workspace
         
-        # Если envsetup.sh не появился в корне, пробуем взять из build/make/
         if [ ! -f "envsetup.sh" ] && [ -f "build/make/envsetup.sh" ]; then
           cp build/make/envsetup.sh ./
         fi
         
         . envsetup.sh || . build/envsetup.sh
         
-        # Вызываем lunch под доступными конфигурациями хоста
         lunch lineage_RMX1971-userdebug || lunch crdroid_RMX1971-userdebug || lunch lineage_RMX1971-eng || true
-        
-        # Запуск компиляции на основе развернутой файловой структуры
         mka bacon -j$(nproc --all) || echo "Базовая структура развернута успешно, требуется догрузка компонентов!"
 
     - name: Compile Recovery
@@ -133,7 +151,6 @@ jobs:
         if [ -f "envsetup.sh" ]; then . envsetup.sh; fi
         mka recoveryimage -j$(nproc --all) || true
         
-        # Упаковка OrangeFox, если выходной каталог создался
         if [ -d "out/target/product/RMX1971" ]; then
           cd out/target/product/RMX1971/
           mkdir -p OF_Build/sdcard
