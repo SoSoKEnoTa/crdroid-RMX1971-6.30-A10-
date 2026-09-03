@@ -21,7 +21,6 @@ jobs:
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /usr/share/swift /usr/local/lib/node_modules
         sudo apt-get clean
         
-        # Галактический хак: Создаем 15ГБ сжатого виртуального пространства, удваивая диск хоста
         sudo swapoff -a || true
         sudo dd if=/dev/zero of=/swapfile bs=1M count=12288
         sudo chmod 600 /swapfile
@@ -79,7 +78,6 @@ jobs:
         echo "TARGET_ARCH_VARIANT := armv8-a" >> BoardConfig.mk
         echo "PRODUCT_DEX_PREOPT_DEFAULT_FLAGS := --compiler-filter=speed" >> BoardConfig.mk
         
-        # Динамические настройки кучи Dalvik VM под Realme Q (4GB/6GB/8GB RAM)
         echo "PRODUCT_PROPERTY_OVERRIDES += ro.config.low_ram=false" >> device.mk
         echo "PRODUCT_PROPERTY_OVERRIDES += dalvik.vm.heapstartsize=8m" >> device.mk
         echo "PRODUCT_PROPERTY_OVERRIDES += dalvik.vm.heapgrowthlimit=256m" >> device.mk
@@ -110,15 +108,13 @@ jobs:
         export Common_global_cflags="-Wno-error"
         
         mkdir -p build
-        cat << 'EOF' > build/envsetup.sh
-#!/bin/bash
-function lunch() {
-    export TARGET_PRODUCT=crdroid_spy
-    export TARGET_BUILD_VARIANT=userdebug
-    export OUT_DIR=out
-    echo "AI Autonomous Core: Environment variables enforced for crdroid_spy-userdebug"
-}
-EOF
+        echo '#!/bin/bash' > build/envsetup.sh
+        echo 'function lunch() {' >> build/envsetup.sh
+        echo '    export TARGET_PRODUCT=crdroid_spy' >> build/envsetup.sh
+        echo '    export TARGET_BUILD_VARIANT=userdebug' >> build/envsetup.sh
+        echo '    export OUT_DIR=out' >> build/envsetup.sh
+        echo '    echo "AI Autonomous Core: Environment variables enforced"' >> build/envsetup.sh
+        echo '}' >> build/envsetup.sh
         chmod a+x build/envsetup.sh
         touch build.log init_env.log
         
