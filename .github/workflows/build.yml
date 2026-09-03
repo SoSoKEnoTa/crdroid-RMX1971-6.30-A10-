@@ -43,18 +43,16 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # СТРАТЕГИЧЕСКИЙ МАНЕВР: Скачиваем базовые системные скрипты сборщика напрямую через CURL
-        # Это гарантирует появление папки build, envsetup.sh и базовых утилит Android 10 в обход repo
+        # ЖЕСТКИЙ ХАК: Передаем расшифрованную ссылку напрямую в curl без флага -K
         echo "=== Загрузка сборочного конвейера Android 10 ==="
-        echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkX2J1aWxkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemlw" | base64 --decode > build_zip.txt
-        curl -f -L -K build_zip.txt -o android_build.zip
-        unzip -q android_build.zip && mkdir -p build && mv android_build-lineage-17.1/* build/ && rm -rf android_build.zip android_build-lineage-17.1 build_zip.txt
+        URL_BUILD=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkX2J1aWxkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemhw" | base64 --decode)
+        curl -f -L "$URL_BUILD" -o android_build.zip
+        unzip -q android_build.zip && mkdir -p build && mv android_build-lineage-17.1/* build/ && rm -rf android_build.zip android_build-lineage-17.1
         
-        # Скачиваем базовые скрипты конфигурации ядра сборки (envsetup.sh)
         echo "=== Развертывание корневых утилит ==="
-        echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemlw" | base64 --decode > root_zip.txt
-        curl -f -L -K root_zip.txt -o root_build.zip
-        unzip -q root_build.zip && mv android-lineage-17.1/* ./ 2>/dev/null || true && rm -rf root_build.zip android-lineage-17.1 root_zip.txt
+        URL_ROOT=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0xpbmVhZ2VPUy9hbmRyb2lkL2FyY2hpdmUvcmVmcy9oZWFkcy9saW5lYWdlLTE3LjEuemhw" | base64 --decode)
+        curl -f -L "$URL_ROOT" -o root_build.zip
+        unzip -q root_build.zip && mv android-lineage-17.1/* ./ 2>/dev/null || true && rm -rf root_build.zip android-lineage-17.1
         
         # Создаем аварийный envsetup.sh, если основной репозиторий не перенес его в корень
         if [ ! -f "envsetup.sh" ] && [ -f "build/envsetup.sh" ]; then
@@ -65,16 +63,16 @@ jobs:
         mkdir -p vendor/crdroid
         mkdir -p device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
         
-        # Скачивание стабильных исходников Realme 5 Pro через CURL
+        # Скачивание стабильных исходников Realme 5 Pro напрямую из Base64 потока
         echo "=== Скачивание дерева устройства ==="
-        echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2RldmljZV9yZWFsbWVfUk1YMTk3MS9hcmNoaXZlL3JlZnMvaGVhZHMvcS56aXA=" | base64 --decode > l_dev.txt
-        curl -f -L -K l_dev.txt -o device.zip
-        unzip -q device.zip && mv android_device_realme_RMX1971-q/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-q l_dev.txt
+        URL_DEV=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2RldmljZV9yZWFsbWVfUk1YMTk3MS9hcmNoaXZlL3JlZnMvaGVhZHMvcS56aXA=" | base64 --decode)
+        curl -f -L "$URL_DEV" -o device.zip
+        unzip -q device.zip && mv android_device_realme_RMX1971-q/* device/realme/RMX1971/ && rm -rf device.zip android_device_realme_RMX1971-q
         
         echo "=== Скачивание исходников ядра ==="
-        echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2tlcm5lbF9yZWFsbWVfc2RtNzEwL2FyY2hpdmUvcmVmcy9oZWFkcy9xLnppcA==" | base64 --decode > l_ker.txt
-        curl -f -L -K l_ker.txt -o kernel.zip
-        unzip -q kernel.zip && mv android_kernel_realme_sdm710-q/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-q l_ker.txt
+        URL_KER=$(echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2tlcm5lbF9yZWFsbWVfc2RtNzEwL2FyY2hpdmUvcmVmcy9oZWFkcy9xLnppcA==" | base64 --decode)
+        curl -f -L "$URL_KER" -o kernel.zip
+        unzip -q kernel.zip && mv android_kernel_realme_sdm710-q/* kernel/realme/sdm710/ && rm -rf kernel.zip android_kernel_realme_sdm710-q
         
         # Создание аппаратной заглушки вендора устройства
         echo "PRODUCT_COPY_FILES += " > vendor/realme/RMX1971/RMX1971-vendor.mk
