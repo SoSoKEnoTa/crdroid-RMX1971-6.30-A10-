@@ -43,12 +43,20 @@ jobs:
         mkdir -p ~/crdroid_workspace
         cd ~/crdroid_workspace
         
-        # Скачивание чистой базы LineageOS через универсальный инструмент repo
-        repo init --depth=1 -u https://github.com -b lineage-17.1
+        # ИСПРАВЛЕНИЕ: Инициализация реальной архивной ветки LineageOS 17.0 (база Android 10)
+        repo init --depth=1 -u https://github.com -b lineage-17.0
         export REPO_SKIP_AUTOMATIC_ROOMSERVICE=1
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents || true
         
-        # Делаем копию вендора, чтобы работали оба имени (lineage и crdroid)
+        # Принудительная синхронизация базовой платформы
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune --no-dependents
+        
+        # Контрольная проверка: если папка build не появилась, значит репо не скачался
+        if [ ! -d "build" ]; then
+          echo "ОШИБКА НИЗКОГО УРОВНЯ: Исходный код платформы не был загружен сервером!"
+          exit 1
+        fi
+        
+        # Копирование структуры вендора под компилятор
         if [ -d "vendor/lineage" ]; then
           cp -r vendor/lineage vendor/crdroid
         fi
@@ -58,7 +66,7 @@ jobs:
         rm -rf device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
         mkdir -p device/realme/RMX1971 kernel/realme/sdm710 vendor/realme/RMX1971
         
-        # Безопасное декодирование ссылок из Base64 (Защита от обрезания URL при передаче)
+        # Безопасное декодирование ссылок из Base64 (Защита от искажения URL при передаче)
         echo "=== Скачивание дерева устройства ==="
         echo "aHR0cHM6Ly9naXRodWIuY29tL0h5cGVyVGVhbS9hbmRyb2lkX2RldmljZV9yZWFsbWVfUk1YMTk3MS9hcmNoaXZlL3JlZnMvaGVhZHMvcS56aXA=" | base64 --decode > l_dev.txt
         curl -f -L -K l_dev.txt -o device.zip || curl -f -L https://github.com -o device.zip
@@ -103,13 +111,13 @@ jobs:
     - name: Setup ccache
       run: |
         echo "USE_CCACHE=1" >> $GITHUB_ENV
-        echo "CCACHE_EXEC=/usr/bin/ccache" >> $GITHUB_ENV
-        ccache -M 50G
-        ccache -z
+        echo "CCACHE_EXEC=/usr/bin/github-actions-ccache" >> $GITHUB_ENV || echo "USE_CCACHE=1" >> $GITHUB_ENV
+        ccache -M 50G || true
 
     - name: Compile Rom
       run: |
         export PATH=$HOME/bin:$PATH
+        # ИСПРАВЛЕНИЕ: Жесткий переход в корневой каталог воркспейса перед запуском компиляции
         cd ~/crdroid_workspace
         . build/envsetup.sh
         
